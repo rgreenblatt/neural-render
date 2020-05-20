@@ -8,10 +8,6 @@ import mathutils
 import numpy as np
 
 
-def mkdirs(path):
-    Path(path).mkdir(parents=True, exist_ok=True)
-
-
 def render_image(path):
     bpy.context.scene.render.filepath = path
 
@@ -27,6 +23,7 @@ def render_image(path):
     os.close(1)
     os.dup(old)
     os.close(old)
+
 
 def main():
     bpy.context.scene.render.resolution_x = 512

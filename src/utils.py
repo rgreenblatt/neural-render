@@ -6,11 +6,17 @@
 # Github repo: https://github.com/lukemelas/EfficientNet-PyTorch
 # With adjustments and added comments by workingcoder (github username).
 
+from pathlib import Path
 import math
 from functools import partial
+
 import torch
 from torch import nn
 from torch.nn import functional as F
+
+
+def mkdirs(path):
+    Path(path).mkdir(parents=True, exist_ok=True)
 
 # Swish and MemoryEfficientSwish: Two implementations of the method
 # round_filters and round_repeats:

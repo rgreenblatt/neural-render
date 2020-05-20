@@ -16,6 +16,7 @@ BlockArgs = collections.namedtuple('BlockArgs', [
 
 def net_params(width_coefficient=1.0,
                depth_coefficient=1.0,
+               base_min_ch=16,
                start_width=4,
                input_size=3,
                output_width=512,
@@ -35,9 +36,9 @@ def net_params(width_coefficient=1.0,
     num_upsamples = get_num_upsamples(output_width)
     nonlocal_index = get_num_upsamples(non_local_width)
 
-    base_min_ch = 16 * width_coefficient
+    min_ch = base_min_ch * width_coefficient
     chan_multiplier = 2
-    initial_ch = chan_multiplier**num_upsamples * base_min_ch
+    initial_ch = chan_multiplier**num_upsamples * min_ch
     num_repeat = 2  # TODO: better approach
 
     blocks_args = []
@@ -46,7 +47,7 @@ def net_params(width_coefficient=1.0,
 
     # TODO: tuning
     for i in range(num_upsamples):
-        ch_after = initial_ch / chan_multiplier
+        ch_after = ch_before / chan_multiplier
         blocks_args.append(
             BlockArgs(
                 num_repeat=round(num_repeat * depth_coefficient),

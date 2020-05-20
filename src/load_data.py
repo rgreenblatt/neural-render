@@ -3,21 +3,24 @@ import os
 import torchvision
 import torch
 import numpy as np
-from skimage import io
+from skimage import io, transform
 
 
 class RenderedDataset(torch.utils.data.Dataset):
-    def __init__(self, npy_path, img_path, transform=None):
+    def __init__(self, npy_path, img_path, img_width, transform=None):
         self.data = np.load(npy_path)
         self.img_path = img_path
+        self.img_width = img_width
         self.transform = transform
 
     def __getitem__(self, index):
-        image = io.imread(os.path.join(self.img_path,
-                                       "img_{}.png".format(index)))
-        label = self.data[index]
+        image = transform.resize(io.imread(
+            os.path.join(self.img_path, "img_{}.png".format(index))),
+                                 (self.img_width, self.img_width),
+                                 anti_aliasing=True)[:,:,:3]
+        inp = self.data[index]
 
-        sample = {'image': image, 'label': label}
+        sample = {'image': image, 'inp': inp}
 
         if self.transform:
             sample = self.transform(sample)
@@ -32,14 +35,14 @@ class ToTensor(object):
     """Convert ndarrays in sample to Tensors."""
 
     def __call__(self, sample):
-        image, label = sample['image'], sample['label']
+        image, inp = sample['image'], sample['inp']
 
         # swap color axis because
         # numpy image: H x W x C
         # torch image: C X H X W
         image = image.transpose((2, 0, 1))
-        return {'image': torch.from_numpy(image),
-                'label': torch.from_numpy(label)}
+        return {'image': torch.from_numpy(image).float(),
+                'inp': torch.from_numpy(inp).float()}
 
 def load_dataset(npy_path,
                  img_path,
@@ -47,9 +50,10 @@ def load_dataset(npy_path,
                  validation_prop,
                  seed,
                  shuffle_split,
+                 img_width=512,
                  num_workers=0):
     dataset = RenderedDataset(
-        npy_path, img_path, transform=ToTensor())
+        npy_path, img_path, img_width, transform=ToTensor())
 
     dataset_size = len(dataset)
 

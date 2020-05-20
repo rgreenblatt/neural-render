@@ -1,3 +1,5 @@
+import functools
+
 import torch
 import torch.nn as nn
 from torch.nn import functional as F
@@ -47,7 +49,8 @@ class MBConvBlock(nn.Module):
             out_channels=oup,
             groups=oup,  # groups makes it depthwise
             kernel_size=k,
-            bias=False)
+            bias=False,
+            padding=1)
         self._bn2 = nn.BatchNorm2d(num_features=oup)
 
         # Squeeze and Excitation layer, if desired
@@ -71,6 +74,8 @@ class MBConvBlock(nn.Module):
                                        bias=False)
         self._swish = MemoryEfficientSwish()
 
+        self._upsample = functools.partial(F.interpolate, scale_factor=2)
+
     def forward(self, inputs, original_input):
         """MBConvBlock's forward function.
 
@@ -93,7 +98,7 @@ class MBConvBlock(nn.Module):
 
         if self._block_args.upsample:
             x = self._upsample(x)
-            inputs = self._upsample(x)[:, :self._block_args.output_ch]
+            inputs = self._upsample(inputs)[:, :self._block_args.output_ch]
 
         x = self._depthwise_conv(x)
         x = self._bn2(x)
