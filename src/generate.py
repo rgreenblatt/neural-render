@@ -50,7 +50,7 @@ def main():
     for i in tqdm(range(count)):
         cube.location = mathutils.Vector((*transforms[i], ))
 
-        render_image("{}/img_{}.png".format(save_dir, i))
+        render_image("{}/imgs/img_{}.png".format(save_dir, i))
 
 
 if __name__ == "__main__":
