@@ -30,8 +30,12 @@ def render_image(path):
 
 
 def main():
-    bpy.context.scene.render.resolution_x = 128
-    bpy.context.scene.render.resolution_y = 128
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--resolution', type=int, default=128)
+    args = parser.parse_args()
+
+    bpy.context.scene.render.resolution_x = args.resolution
+    bpy.context.scene.render.resolution_y = args.resolution
     bpy.context.scene.eevee.taa_render_samples = 8
 
     save_dir = "data/"

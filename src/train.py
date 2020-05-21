@@ -14,8 +14,8 @@ from utils import mkdirs, PiecewiseLinear
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--lr-multiplier', type=float, default='1.0')
-    parser.add_argument('--batch-size', type=int, default='16')
+    parser.add_argument('--lr-multiplier', type=float, default=1.0)
+    parser.add_argument('--batch-size', type=int, default=16)
     args = parser.parse_args()
 
     torch.backends.cudnn.benchmark = True
