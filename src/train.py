@@ -8,7 +8,7 @@ from torchvision.utils import save_image
 from model import Net
 from load_data import load_dataset
 from arch import net_params
-from utils import mkdirs
+from utils import mkdirs, PiecewiseLinear
 
 
 def main():
@@ -40,15 +40,25 @@ def main():
     print(pms.summary(net, torch.zeros(1, 3, device=device).float()))
 
     # TODO: consider switching to l1 (as opposed to l2)
-    criterion = torch.nn.MSELoss()
-    optimizer = torch.optim.Adam(net.parameters(), lr=1e-2, weight_decay=0.0)
+    criterion = torch.nn.MSELoss(reduction='sum')
+    epoches = 100
+    lr_schedule = PiecewiseLinear([0, 20, 80],
+                                  [0.1, 3, 0.003])
+    optimizer = torch.optim.Adam(
+        net.parameters(),
+        lr=0.1,
+        weight_decay=0.0)
 
     mkdirs("outputs")
 
-    epoches = 10
     for epoch in range(epoches):
         net.train()
         train_loss = 0.0
+
+        lr = lr_schedule(epoch) / batch_size
+
+        for param_group in optimizer.param_groups:
+            param_group['lr'] = lr
 
         for i, data in enumerate(train):
             inp = data['inp'].to(device)
@@ -93,8 +103,8 @@ def main():
 
         test_loss /= len(test)
 
-        print("epoch: {}, train loss: {}, test loss: {}".format(
-            epoch, train_loss, test_loss))
+        print("epoch: {}, train loss: {}, test loss: {}, lr: {}".format(
+            epoch, train_loss, test_loss, lr))
 
     example_transforms = np.array([[4.5, 4.2, 4.5], [-4.5, -4.2, -4.5],
                                    [-1.0, 0.0, 0.0]])
