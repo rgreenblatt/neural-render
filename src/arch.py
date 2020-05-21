@@ -5,7 +5,8 @@ import math
 
 # Parameters for the entire model (TODO: non-local etc)
 GlobalParams = collections.namedtuple(
-    'GlobalParams', ['start_width', 'input_size', 'nonlocal_index'])
+    'GlobalParams',
+    ['start_width', 'input_size', 'nonlocal_index', 'norm_style'])
 
 # Parameters for each model block (TODO)
 BlockArgs = collections.namedtuple('BlockArgs', [
@@ -20,24 +21,23 @@ def net_params(width_coefficient=1.0,
                start_width=4,
                input_size=3,
                output_width=512,
-               non_local_width=64):
+               non_local_width=64,
+               chan_multiplier=2,
+               norm_style='bn'):
     """Create BlockArgs and GlobalParams
 
     Args:
-        width_coefficient (float)
-        depth_coefficient (float)
-        num_upsamples (int)
+        TODO
     Returns:
         blocks_args, global_params.
     """
 
-    get_num_upsamples = lambda x : math.ceil(math.log2(x / start_width))
+    get_num_upsamples = lambda x: math.ceil(math.log2(x / start_width))
 
     num_upsamples = get_num_upsamples(output_width)
     nonlocal_index = get_num_upsamples(non_local_width)
 
     min_ch = base_min_ch * width_coefficient
-    chan_multiplier = 2
     initial_ch = chan_multiplier**num_upsamples * min_ch
     num_repeat = 2  # TODO: better approach
 
@@ -65,6 +65,7 @@ def net_params(width_coefficient=1.0,
 
     global_params = GlobalParams(start_width=start_width,
                                  input_size=input_size,
-                                 nonlocal_index=nonlocal_index)
+                                 nonlocal_index=nonlocal_index,
+                                 norm_style=norm_style)
 
     return blocks_args, global_params

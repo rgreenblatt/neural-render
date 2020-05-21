@@ -8,6 +8,10 @@ import mathutils
 import numpy as np
 
 
+def mkdirs(path):
+    Path(path).mkdir(parents=True, exist_ok=True)
+
+
 def render_image(path):
     bpy.context.scene.render.filepath = path
 
@@ -26,8 +30,8 @@ def render_image(path):
 
 
 def main():
-    bpy.context.scene.render.resolution_x = 512
-    bpy.context.scene.render.resolution_y = 512
+    bpy.context.scene.render.resolution_x = 128
+    bpy.context.scene.render.resolution_y = 128
     bpy.context.scene.eevee.taa_render_samples = 8
 
     save_dir = "data/"

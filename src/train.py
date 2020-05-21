@@ -30,24 +30,22 @@ def main():
                                valid_prop,
                                seed,
                                True,
-                               img_width=img_width,
                                num_workers=8)
 
-    blocks_args, global_params = net_params(output_width=img_width)
+    blocks_args, global_params = net_params(chan_multiplier=1.5,
+                                            base_min_ch=32,
+                                            output_width=img_width)
 
     net = Net(blocks_args, global_params).to(device)
 
     print(pms.summary(net, torch.zeros(1, 3, device=device).float()))
+    print(net)
 
     # TODO: consider switching to l1 (as opposed to l2)
-    criterion = torch.nn.MSELoss(reduction='sum')
+    criterion = torch.nn.MSELoss()
     epoches = 100
-    lr_schedule = PiecewiseLinear([0, 20, 80],
-                                  [0.1, 3, 0.003])
-    optimizer = torch.optim.Adam(
-        net.parameters(),
-        lr=0.1,
-        weight_decay=0.0)
+    lr_schedule = PiecewiseLinear([0, 20, 80], [0.001, 0.005, 0.0001])
+    optimizer = torch.optim.Adam(net.parameters(), lr=0.1, weight_decay=0.0)
 
     mkdirs("outputs")
 
@@ -55,23 +53,25 @@ def main():
         net.train()
         train_loss = 0.0
 
-        lr = lr_schedule(epoch) / batch_size
+        lr = lr_schedule(epoch)
 
         for param_group in optimizer.param_groups:
             param_group['lr'] = lr
 
         for i, data in enumerate(train):
             inp = data['inp'].to(device)
-            image = data['image'].to(device) / 255.0
+            image = data['image'].to(device)
 
             optimizer.zero_grad()
 
             outputs = net(inp)
 
+            zeros = torch.zeros_like(image)
+
             if i % 100 == 0:
-                save_image(image * 255,
+                save_image(image,
                            "outputs/train_actual_{}_{}.png".format(epoch, i))
-                save_image(outputs * 255,
+                save_image(outputs,
                            "outputs/train_output_{}_{}.png".format(epoch, i))
 
             loss = criterion(outputs, image)
@@ -87,15 +87,17 @@ def main():
         with torch.no_grad():
             for i, data in enumerate(test):
                 inp = data['inp'].to(device)
-                image = data['image'].to(device) / 255.0
+                image = data['image'].to(device)
 
                 outputs = net(inp)
 
                 if i % 30 == 0:
-                    save_image(image * 255,
-                               "outputs/test_actual_{}_{}.png".format(epoch, i))
-                    save_image(outputs * 255,
-                               "outputs/test_output_{}_{}.png".format(epoch, i))
+                    save_image(
+                        image,
+                        "outputs/test_actual_{}_{}.png".format(epoch, i))
+                    save_image(
+                        outputs,
+                        "outputs/test_output_{}_{}.png".format(epoch, i))
 
                 loss = criterion(outputs, image)
 

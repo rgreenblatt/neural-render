@@ -1,7 +1,7 @@
 import torch
 from torch import nn
 
-from layers import MBConvBlock, Attention
+from layers import MBConvGBlock, Attention
 from utils import Swish, MemoryEfficientSwish
 
 
@@ -29,12 +29,20 @@ class Net(nn.Module):
         self._blocks = nn.ModuleList([])
 
         for i, block_args in enumerate(self._blocks_args):
-            for _ in range(block_args.num_repeat):
-                self._blocks.append(
-                    MBConvBlock(block_args, self._global_params))
+            input_ch = block_args.input_ch
+            output_ch = block_args.output_ch
 
-                block_args = block_args._replace(upsample=False,
-                                                 input_ch=block_args.output_ch)
+            block_args = block_args._replace(upsample=False,
+                                             output_ch=input_ch)
+            for _ in range(block_args.num_repeat - 1):
+
+                self._blocks.append(
+                    MBConvGBlock(block_args, self._global_params))
+
+            block_args = block_args._replace(upsample=True,
+                                             output_ch=output_ch)
+
+            self._blocks.append(MBConvGBlock(block_args, self._global_params))
 
             if i == self._global_params.nonlocal_index - 1:
                 self._blocks.append(Attention(block_args.output_ch))

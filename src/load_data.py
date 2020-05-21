@@ -7,17 +7,16 @@ from skimage import io, transform
 
 
 class RenderedDataset(torch.utils.data.Dataset):
-    def __init__(self, npy_path, img_path, img_width, transform=None):
+    def __init__(self, npy_path, img_path, transform=None):
         self.data = np.load(npy_path)
         self.img_path = img_path
-        self.img_width = img_width
         self.transform = transform
 
     def __getitem__(self, index):
-        image = transform.resize(io.imread(
-            os.path.join(self.img_path, "img_{}.png".format(index))),
-                                 (self.img_width, self.img_width),
-                                 anti_aliasing=True)[:,:,:3]
+        image = io.imread(
+            os.path.join(self.img_path,
+                         "img_{}.png".format(index)))[:, :, :3].astype(
+                             np.float32) / 255.0
         inp = self.data[index]
 
         sample = {'image': image, 'inp': inp}
@@ -25,15 +24,14 @@ class RenderedDataset(torch.utils.data.Dataset):
         if self.transform:
             sample = self.transform(sample)
 
-
         return sample
 
     def __len__(self):
         return len(self.data)
 
+
 class ToTensor(object):
     """Convert ndarrays in sample to Tensors."""
-
     def __call__(self, sample):
         image, inp = sample['image'], sample['inp']
 
@@ -41,8 +39,11 @@ class ToTensor(object):
         # numpy image: H x W x C
         # torch image: C X H X W
         image = image.transpose((2, 0, 1))
-        return {'image': torch.from_numpy(image).float(),
-                'inp': torch.from_numpy(inp).float()}
+        return {
+            'image': torch.from_numpy(image).float(),
+            'inp': torch.from_numpy(inp).float()
+        }
+
 
 def load_dataset(npy_path,
                  img_path,
@@ -50,10 +51,8 @@ def load_dataset(npy_path,
                  validation_prop,
                  seed,
                  shuffle_split,
-                 img_width=512,
                  num_workers=0):
-    dataset = RenderedDataset(
-        npy_path, img_path, img_width, transform=ToTensor())
+    dataset = RenderedDataset(npy_path, img_path, transform=ToTensor())
 
     dataset_size = len(dataset)
 

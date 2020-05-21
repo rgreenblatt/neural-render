@@ -8,8 +8,58 @@ from torch.nn import Parameter as P
 from utils import (Swish, MemoryEfficientSwish)
 
 
-class MBConvBlock(nn.Module):
-    """Mobile Inverted Residual Bottleneck Block. (with upsampling)
+# From big gan...
+class ccbn(nn.Module):
+    def __init__(
+        self,
+        output_size,
+        input_size,
+        which_linear,
+        eps=1e-5,
+        momentum=0.1,
+        norm_style='bn',
+    ):
+        super(ccbn, self).__init__()
+        self.output_size, self.input_size = output_size, input_size
+        # Prepare gain and bias layers
+        self.gain = which_linear(input_size, output_size)
+        self.bias = which_linear(input_size, output_size)
+        # epsilon to avoid dividing by 0
+        self.eps = eps
+        # Momentum
+        self.momentum = momentum
+        # Norm style?
+        self.norm_style = norm_style
+
+        if self.norm_style in ['bn', 'in']:
+            self.register_buffer('stored_mean', torch.zeros(output_size))
+            self.register_buffer('stored_var', torch.ones(output_size))
+
+    def forward(self, x, y):
+        # Calculate class-conditional gains and biases
+        gain = (1 + self.gain(y)).view(y.size(0), -1, 1, 1)
+        bias = self.bias(y).view(y.size(0), -1, 1, 1)
+
+        if self.norm_style == 'bn':
+            out = F.batch_norm(x, self.stored_mean, self.stored_var, None,
+                               None, self.training, 0.1, self.eps)
+        elif self.norm_style == 'in':
+            out = F.instance_norm(x, self.stored_mean, self.stored_var, None,
+                                  None, self.training, 0.1, self.eps)
+        elif self.norm_style == 'gn':
+            out = groupnorm(x, self.normstyle)
+        elif self.norm_style == 'nonorm':
+            out = x
+        return out * gain + bias
+
+    def extra_repr(self):
+        s = 'out: {output_size}, in: {input_size},'
+        s += ' norm_style={norm_style}'
+        return s.format(**self.__dict__)
+
+
+class MBConvGBlock(nn.Module):
+    """Mobile Inverted Residual Bottleneck Block. (with upsampling and class bn)
 
     Args:
         block_args (namedtuple): BlockArgs, defined in utils.py.
@@ -33,14 +83,20 @@ class MBConvBlock(nn.Module):
         # number of output channels
         oup = self._block_args.input_ch * self._block_args.expand_ratio
 
-        self._bn0 = nn.BatchNorm2d(num_features=inp)
+        bn_linear = functools.partial(nn.Linear, bias=False)
+        self.which_bn = functools.partial(ccbn,
+                                          which_linear=bn_linear,
+                                          input_size=global_params.input_size,
+                                          norm_style=global_params.norm_style)
+
+        self._bn0 = self.which_bn(inp)
 
         if self._block_args.expand_ratio != 1:
             self._expand_conv = nn.Conv2d(in_channels=inp,
                                           out_channels=oup,
                                           kernel_size=1,
                                           bias=False)
-            self._bn1 = nn.BatchNorm2d(num_features=oup)
+            self._bn1 = self.which_bn(oup)
 
         # Depthwise convolution phase
         k = self._block_args.kernel_size
@@ -51,7 +107,7 @@ class MBConvBlock(nn.Module):
             kernel_size=k,
             bias=False,
             padding=1)
-        self._bn2 = nn.BatchNorm2d(num_features=oup)
+        self._bn2 = self.which_bn(oup)
 
         # Squeeze and Excitation layer, if desired
         if self.has_se:
@@ -88,12 +144,12 @@ class MBConvBlock(nn.Module):
 
         # Expansion and Depthwise Convolution
         x = inputs
-        x = self._bn0(x)  # TODO: add needed info here (and at other bn)
+        x = self._bn0(x, original_input)
         x = self._swish(x)
 
         if self._block_args.expand_ratio != 1:
             x = self._expand_conv(inputs)
-            x = self._bn1(x)  # TODO: add needed info here (and at other bn)
+            x = self._bn1(x, original_input)
             x = self._swish(x)
 
         if self._block_args.upsample:
@@ -101,7 +157,7 @@ class MBConvBlock(nn.Module):
             inputs = self._upsample(inputs)[:, :self._block_args.output_ch]
 
         x = self._depthwise_conv(x)
-        x = self._bn2(x)
+        x = self._bn2(x, original_input)
         x = self._swish(x)
 
         # Squeeze and Excitation
