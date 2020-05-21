@@ -45,6 +45,24 @@ class ToTensor(object):
         }
 
 
+# compare to SubsetRandomSampler
+class SubsetSampler(torch.utils.data.sampler.Sampler):
+    r"""Samples elements from a given list of indices, without replacement.
+
+    Arguments:
+        indices (sequence): a sequence of indices
+    """
+
+    def __init__(self, indices):
+        self.indices = indices
+
+    def __iter__(self):
+        return (self.indices[i] for i in range(len(self.indices)))
+
+    def __len__(self):
+        return len(self.indices)
+
+
 def load_dataset(npy_path,
                  img_path,
                  batch_size,
@@ -66,7 +84,7 @@ def load_dataset(npy_path,
     train_indices, val_indices = indices[split:], indices[:split]
 
     train_sampler = torch.utils.data.sampler.SubsetRandomSampler(train_indices)
-    val_sampler = torch.utils.data.sampler.SubsetRandomSampler(val_indices)
+    val_sampler = SubsetSampler(val_indices)
 
     def make_loader(sampler):
         return torch.utils.data.DataLoader(

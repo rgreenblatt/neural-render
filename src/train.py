@@ -1,9 +1,11 @@
 import os
 import argparse
+import sys
 
 import torch
+from torch.utils.tensorboard import SummaryWriter
 import numpy as np
-from torchvision.utils import save_image
+from torchvision.utils import make_grid
 
 from model import Net
 from load_data import load_dataset
@@ -16,6 +18,11 @@ def main():
     parser.add_argument('--lr-multiplier', type=float, default=1.0)
     parser.add_argument('--batch-size', type=int, default=16)
     parser.add_argument('--resolution', type=int, default=128)
+    parser.add_argument('--valid-split-seed', type=int, default=0)
+    parser.add_argument('--train-images-to-save', type=int, default=16)
+    parser.add_argument('--test-images-to-save', type=int, default=16)
+    parser.add_argument('--save-model-every', type=int, default=5)
+    parser.add_argument('--name', required=True)
     args = parser.parse_args()
 
     torch.backends.cudnn.benchmark = True
@@ -26,7 +33,6 @@ def main():
     img_path = os.path.join(data_path, 'imgs')
     batch_size = args.batch_size
     valid_prop = 0.2
-    seed = 7
 
     img_width = args.resolution
 
@@ -34,12 +40,11 @@ def main():
                                img_path,
                                batch_size,
                                valid_prop,
-                               seed,
+                               args.valid_split_seed,
                                True,
                                num_workers=8)
 
-    blocks_args, global_params = net_params(chan_multiplier=2,
-                                            base_min_ch=32,
+    blocks_args, global_params = net_params(base_min_ch=32,
                                             output_width=img_width)
 
     net = Net(blocks_args, global_params).to(device)
@@ -53,7 +58,21 @@ def main():
                                   [0.0005, 0.002, 0.0002, 0.00002])
     optimizer = torch.optim.Adam(net.parameters(), lr=0.1, weight_decay=0.0)
 
-    mkdirs("outputs")
+    output_dir = "outputs/{}/".format(args.name)
+    tensorboard_output = os.path.join(output_dir, "tensorboard")
+    model_save_output = os.path.join(output_dir, "models")
+
+    if os.path.exists(output_dir):
+        print("output directory exists, returning")
+        sys.exit(1)
+
+    mkdirs(tensorboard_output)
+    mkdirs(model_save_output)
+
+    writer = SummaryWriter(log_dir=tensorboard_output)
+
+    train_batches_to_save = args.train_images_to_save // batch_size
+    test_batches_to_save = args.test_images_to_save // batch_size
 
     for epoch in range(epoches):
         net.train()
@@ -64,6 +83,9 @@ def main():
         for param_group in optimizer.param_groups:
             param_group['lr'] = lr
 
+        actual_images_train = None
+        output_images_train = None
+
         for i, data in enumerate(train):
             inp = data['inp'].to(device)
             image = data['image'].to(device)
@@ -72,13 +94,17 @@ def main():
 
             outputs = net(inp)
 
-            zeros = torch.zeros_like(image)
-
-            if i % 100 == 0:
-                save_image(image,
-                           "outputs/train_actual_{}_{}.png".format(epoch, i))
-                save_image(outputs,
-                           "outputs/train_output_{}_{}.png".format(epoch, i))
+            if i < train_batches_to_save:
+                cpu_images = image.detach().cpu()
+                cpu_outputs = outputs.detach().cpu()
+                if actual_images_train is not None:
+                    actual_images_train = torch.cat(
+                        (actual_images_train, cpu_images), dim=0)
+                    output_images_train = torch.cat(
+                        (output_images_train, cpu_outputs), dim=0)
+                else:
+                    actual_images_train = cpu_images
+                    output_images_train = cpu_outputs
 
             loss = criterion(outputs, image)
             loss.backward()
@@ -90,6 +116,10 @@ def main():
 
         net.eval()
         test_loss = 0.0
+
+        actual_images_test = None
+        output_images_test = None
+
         with torch.no_grad():
             for i, data in enumerate(test):
                 inp = data['inp'].to(device)
@@ -97,13 +127,17 @@ def main():
 
                 outputs = net(inp)
 
-                if i % 30 == 0:
-                    save_image(
-                        image,
-                        "outputs/test_actual_{}_{}.png".format(epoch, i))
-                    save_image(
-                        outputs,
-                        "outputs/test_output_{}_{}.png".format(epoch, i))
+                if i < test_batches_to_save:
+                    cpu_images = image.detach().cpu()
+                    cpu_outputs = outputs.detach().cpu()
+                    if actual_images_test is not None:
+                        actual_images_test = torch.cat(
+                            (actual_images_test, cpu_images), dim=0)
+                        output_images_test = torch.cat(
+                            (output_images_test, cpu_outputs), dim=0)
+                    else:
+                        actual_images_test = cpu_images
+                        output_images_test = cpu_outputs
 
                 loss = criterion(outputs, image)
 
@@ -113,21 +147,23 @@ def main():
 
         print("epoch: {}, train loss: {}, test loss: {}, lr: {}".format(
             epoch, train_loss, test_loss, lr))
+        writer.add_image("images/train/actual", make_grid(actual_images_train),
+                         epoch)
+        writer.add_image("images/train/output", make_grid(output_images_train),
+                         epoch)
+        writer.add_image("images/test/actual", make_grid(actual_images_test),
+                         epoch)
+        writer.add_image("images/test/output", make_grid(output_images_test),
+                         epoch)
+        writer.add_scalar("loss/train", train_loss, epoch)
+        writer.add_scalar("loss/test", test_loss, epoch)
+        writer.add_scalar("lr", lr, epoch)
 
-    example_transforms = np.array([[4.5, 4.2, 4.5], [-4.5, -4.2, -4.5],
-                                   [-1.0, 0.0, 0.0]])
+        if epoch + 1 % args.save_model_every == 0:
+            torch.save(
+                net, os.path.join(model_save_output, "net_{}.p".format(epoch)))
 
-    def evaluate_and_save_examples(transforms):
-        with torch.no_grad():
-            count = transforms.shape[0]
-            transforms = torch.tensor(transforms).float().to(device)
-
-            outputs = net(transforms).detach().cpu()
-            for i in range(count):
-                save_image(outputs[i] * 255,
-                           "outputs/example_img_{}.png".format(i))
-
-    evaluate_and_save_examples(example_transforms)
+    torch.save(net, os.path.join(model_save_output, "net_final.p"))
 
 
 if __name__ == "__main__":
