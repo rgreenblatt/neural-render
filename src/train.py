@@ -38,7 +38,7 @@ def main():
                                True,
                                num_workers=8)
 
-    blocks_args, global_params = net_params(chan_multiplier=1.5,
+    blocks_args, global_params = net_params(chan_multiplier=2,
                                             base_min_ch=32,
                                             output_width=img_width)
 
