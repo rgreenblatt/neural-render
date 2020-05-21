@@ -4,14 +4,15 @@ from distutils.util import strtobool
 import math
 
 # Parameters for the entire model (TODO: non-local etc)
-GlobalParams = collections.namedtuple(
-    'GlobalParams',
-    ['start_width', 'input_size', 'nonlocal_index', 'norm_style'])
+GlobalParams = collections.namedtuple('GlobalParams', [
+    'start_width', 'end_width', 'input_size', 'input_expand_size',
+    'nonlocal_index', 'norm_style'
+])
 
 # Parameters for each model block (TODO)
 BlockArgs = collections.namedtuple('BlockArgs', [
     'num_repeat', 'kernel_size', 'upsample', 'expand_ratio', 'input_ch',
-    'output_ch', 'se_ratio'
+    'output_ch', 'se_ratio', 'show_position', 'res'
 ])
 
 
@@ -20,6 +21,7 @@ def net_params(width_coefficient=1.0,
                base_min_ch=16,
                start_width=4,
                input_size=3,
+               input_expand_size=15,
                output_width=512,
                non_local_width=64,
                chan_multiplier=2,
@@ -45,6 +47,8 @@ def net_params(width_coefficient=1.0,
 
     ch_before = initial_ch
 
+    res = start_width
+
     # TODO: tuning
     for i in range(num_upsamples):
         ch_after = ch_before / chan_multiplier
@@ -60,11 +64,16 @@ def net_params(width_coefficient=1.0,
                 input_ch=round(ch_before),
                 output_ch=round(ch_after),
                 se_ratio=0.25,
+                show_position=True,
+                res=res,
             ))
         ch_before = ch_after
+        res *= 2
 
     global_params = GlobalParams(start_width=start_width,
+                                 end_width=output_width,
                                  input_size=input_size,
+                                 input_expand_size=input_expand_size,
                                  nonlocal_index=nonlocal_index,
                                  norm_style=norm_style)
 

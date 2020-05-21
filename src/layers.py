@@ -83,11 +83,12 @@ class MBConvGBlock(nn.Module):
         # number of output channels
         oup = self._block_args.input_ch * self._block_args.expand_ratio
 
-        bn_linear = functools.partial(nn.Linear, bias=False)
-        self.which_bn = functools.partial(ccbn,
-                                          which_linear=bn_linear,
-                                          input_size=global_params.input_size,
-                                          norm_style=global_params.norm_style)
+        bn_linear = functools.partial(nn.Linear, bias=True)
+        self.which_bn = functools.partial(
+            ccbn,
+            which_linear=bn_linear,
+            input_size=global_params.input_expand_size,
+            norm_style=global_params.norm_style)
 
         self._bn0 = self.which_bn(inp)
 
@@ -132,7 +133,7 @@ class MBConvGBlock(nn.Module):
 
         self._upsample = functools.partial(F.interpolate, scale_factor=2)
 
-    def forward(self, inputs, original_input):
+    def forward(self, inputs, original_input_expanded, position_ch):
         """MBConvBlock's forward function.
 
         Args:
@@ -144,12 +145,18 @@ class MBConvGBlock(nn.Module):
 
         # Expansion and Depthwise Convolution
         x = inputs
-        x = self._bn0(x, original_input)
+        x = self._bn0(x, original_input_expanded)
         x = self._swish(x)
+
+        if self._block_args.show_position:
+            expanded_pos = position_ch[self._block_args.res].expand(
+                x.size(0), -1, -1, -1)
+
+            x = torch.cat((x, expanded_pos), dim=1)
 
         if self._block_args.expand_ratio != 1:
             x = self._expand_conv(inputs)
-            x = self._bn1(x, original_input)
+            x = self._bn1(x, original_input_expanded)
             x = self._swish(x)
 
         if self._block_args.upsample:
@@ -157,7 +164,7 @@ class MBConvGBlock(nn.Module):
             inputs = self._upsample(inputs)[:, :self._block_args.output_ch]
 
         x = self._depthwise_conv(x)
-        x = self._bn2(x, original_input)
+        x = self._bn2(x, original_input_expanded)
         x = self._swish(x)
 
         # Squeeze and Excitation
@@ -213,7 +220,7 @@ class Attention(nn.Module):
         # Learnable gain parameter
         self.gamma = P(torch.tensor(0.), requires_grad=True)
 
-    def forward(self, x, y=None):
+    def forward(self, x, y=None, position_ch=None):
         # Apply convs
         theta = self.theta(x)
         phi = F.max_pool2d(self.phi(x), [2, 2])

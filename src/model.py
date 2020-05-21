@@ -2,7 +2,7 @@ import torch
 from torch import nn
 
 from layers import MBConvGBlock, Attention
-from utils import Swish, MemoryEfficientSwish
+from utils import Swish, MemoryEfficientSwish, get_position_ch
 
 
 class Net(nn.Module):
@@ -20,6 +20,9 @@ class Net(nn.Module):
         self._blocks_args = blocks_args
 
         out_channels = 3  # rgb
+
+        self.input_expand = nn.Linear(self._global_params.input_size,
+                                      self._global_params.input_expand_size)
 
         # linear block
         self.linear = nn.Linear(
@@ -77,11 +80,17 @@ class Net(nn.Module):
             image output from values 0 to 1
         """
 
+        inputs_expanded = self._swish(self.input_expand(inputs))
         x = self.linear(inputs)
         x = x.view(x.size(0), -1, self._global_params.start_width,
                    self._global_params.start_width)
+
+        position_ch = get_position_ch(self._global_params.start_width,
+                                      self._global_params.end_width, x.dtype,
+                                      x.device)
         for b in self._blocks:
-            x = b(x, inputs)  # later inputs here will be more complex?
+            # TODO: inputs feature extraction when using triangles
+            x = b(x, inputs_expanded, position_ch)
 
         x = self.output_bn(x)
         x = self._swish(x)

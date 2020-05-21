@@ -3,7 +3,6 @@ import argparse
 
 import torch
 import numpy as np
-import pytorch_model_summary as pms
 from torchvision.utils import save_image
 
 from model import Net
@@ -45,14 +44,13 @@ def main():
 
     net = Net(blocks_args, global_params).to(device)
 
-    print(pms.summary(net, torch.zeros(1, 3, device=device).float()))
     print(net)
 
     # TODO: consider switching to l1 (as opposed to l2)
     criterion = torch.nn.MSELoss()
     epoches = 100
     lr_schedule = PiecewiseLinear([0, 10, 70, 100],
-                                  [0.001, 0.005, 0.0005, 0.00005])
+                                  [0.0005, 0.002, 0.0002, 0.00002])
     optimizer = torch.optim.Adam(net.parameters(), lr=0.1, weight_decay=0.0)
 
     mkdirs("outputs")
