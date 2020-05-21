@@ -1,6 +1,7 @@
 import os
 import argparse
 import sys
+import datetime
 
 import torch
 from torch.utils.tensorboard import SummaryWriter
@@ -145,8 +146,8 @@ def main():
 
         test_loss /= len(test)
 
-        print("epoch: {}, train loss: {}, test loss: {}, lr: {}".format(
-            epoch, train_loss, test_loss, lr))
+        print("{}, epoch: {}, train loss: {}, test loss: {}, lr: {}".format(
+            datetime.datetime.now(), epoch, train_loss, test_loss, lr))
         writer.add_image("images/train/actual", make_grid(actual_images_train),
                          epoch)
         writer.add_image("images/train/output", make_grid(output_images_train),
@@ -159,7 +160,7 @@ def main():
         writer.add_scalar("loss/test", test_loss, epoch)
         writer.add_scalar("lr", lr, epoch)
 
-        if epoch + 1 % args.save_model_every == 0:
+        if (epoch + 1) % args.save_model_every == 0:
             torch.save(
                 net, os.path.join(model_save_output, "net_{}.p".format(epoch)))
 
