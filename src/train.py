@@ -16,6 +16,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--lr-multiplier', type=float, default=1.0)
     parser.add_argument('--batch-size', type=int, default=16)
+    parser.add_argument('--resolution', type=int, default=128)
     args = parser.parse_args()
 
     torch.backends.cudnn.benchmark = True
@@ -28,7 +29,7 @@ def main():
     valid_prop = 0.2
     seed = 7
 
-    img_width = 128
+    img_width = args.resolution
 
     train, test = load_dataset(npy_path,
                                img_path,
