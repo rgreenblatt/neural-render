@@ -15,6 +15,7 @@ from utils import mkdirs, PiecewiseLinear
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--lr-multiplier', type=float, default='1.0')
+    parser.add_argument('--batch-size', type=int, default='64')
     args = parser.parse_args()
 
     torch.backends.cudnn.benchmark = True
@@ -23,7 +24,7 @@ def main():
     data_path = 'data/'
     npy_path = os.path.join(data_path, 'transforms.npy')
     img_path = os.path.join(data_path, 'imgs')
-    batch_size = 16
+    batch_size = args.batch_size
     valid_prop = 0.2
     seed = 7
 
