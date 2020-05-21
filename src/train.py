@@ -1,4 +1,5 @@
 import os
+import argparse
 
 import torch
 import numpy as np
@@ -12,6 +13,10 @@ from utils import mkdirs, PiecewiseLinear
 
 
 def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--lr-multiplier', type=float, default='1.0')
+    args = parser.parse_args()
+
     torch.backends.cudnn.benchmark = True
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
@@ -44,7 +49,8 @@ def main():
     # TODO: consider switching to l1 (as opposed to l2)
     criterion = torch.nn.MSELoss()
     epoches = 100
-    lr_schedule = PiecewiseLinear([0, 20, 80], [0.001, 0.005, 0.0001])
+    lr_schedule = PiecewiseLinear([0, 10, 70, 100],
+                                  [0.001, 0.005, 0.0005, 0.00005])
     optimizer = torch.optim.Adam(net.parameters(), lr=0.1, weight_decay=0.0)
 
     mkdirs("outputs")
@@ -53,7 +59,7 @@ def main():
         net.train()
         train_loss = 0.0
 
-        lr = lr_schedule(epoch)
+        lr = args.lr_multiplier * lr_schedule(epoch)
 
         for param_group in optimizer.param_groups:
             param_group['lr'] = lr
