@@ -9,7 +9,7 @@ import numpy as np
 from torchvision.utils import make_grid
 
 from model import Net
-from load_data import load_dataset
+from load_data import load_dataset, linear_to_srgb
 from arch import net_params
 from utils import mkdirs, PiecewiseLinear
 
@@ -30,23 +30,28 @@ def main():
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
     data_path = 'data/'
-    npy_path = os.path.join(data_path, 'transforms.npy')
+    p_path = os.path.join(data_path, 'scenes.p')
     img_path = os.path.join(data_path, 'imgs')
     batch_size = args.batch_size
     valid_prop = 0.2
 
     img_width = args.resolution
 
-    train, test = load_dataset(npy_path,
+    train, test = load_dataset(p_path,
                                img_path,
+                               img_width,
                                batch_size,
                                valid_prop,
                                args.valid_split_seed,
                                True,
                                num_workers=8)
 
+    input_size = 20
+
     blocks_args, global_params = net_params(base_min_ch=32,
-                                            output_width=img_width)
+                                            output_width=img_width,
+                                            input_size=input_size,
+                                            input_expand_size=4 * input_size)
 
     net = Net(blocks_args, global_params).to(device)
 
@@ -87,17 +92,17 @@ def main():
         actual_images_train = None
         output_images_train = None
 
-        for i, data in enumerate(train):
+        for i, (splits, data) in enumerate(train):
             inp = data['inp'].to(device)
             image = data['image'].to(device)
 
             optimizer.zero_grad()
 
-            outputs = net(inp)
+            outputs = net(inp, splits)
 
             if i < train_batches_to_save:
-                cpu_images = image.detach().cpu()
-                cpu_outputs = outputs.detach().cpu()
+                cpu_images = linear_to_srgb(image.detach().cpu())
+                cpu_outputs = linear_to_srgb(outputs.detach().cpu())
                 if actual_images_train is not None:
                     actual_images_train = torch.cat(
                         (actual_images_train, cpu_images), dim=0)
@@ -122,15 +127,15 @@ def main():
         output_images_test = None
 
         with torch.no_grad():
-            for i, data in enumerate(test):
+            for i, (splits, data) in enumerate(test):
                 inp = data['inp'].to(device)
                 image = data['image'].to(device)
 
-                outputs = net(inp)
+                outputs = net(inp, splits)
 
                 if i < test_batches_to_save:
-                    cpu_images = image.detach().cpu()
-                    cpu_outputs = outputs.detach().cpu()
+                    cpu_images = linear_to_srgb(image.detach().cpu())
+                    cpu_outputs = linear_to_srgb(outputs.detach().cpu())
                     if actual_images_test is not None:
                         actual_images_test = torch.cat(
                             (actual_images_test, cpu_images), dim=0)

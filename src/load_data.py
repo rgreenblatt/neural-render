@@ -1,22 +1,65 @@
 import os
+import pickle
 
 import torchvision
 import torch
 import numpy as np
 from skimage import io, transform
+import OpenEXR as exr
+from Imath import PixelType
+
+def load_exr(path):
+    file = exr.InputFile(path)
+
+    header = file.header()
+    dw = header['dataWindow']
+    isize = (dw.max.y - dw.min.y + 1, dw.max.x - dw.min.x + 1)
+
+    channels = []
+    for c in ["R", "G", "B"]:
+        channel = file.channel(c, PixelType(PixelType.FLOAT))
+        channel = np.fromstring(channel, dtype=np.float32)
+        channel = np.reshape(channel, isize)
+
+        channels.append(channel)
+
+    return np.stack(channels, axis=2)
+
+# Note: expects tensor type in standard format (N x C x H x W)
+def linear_to_srgb(img):
+    return torch.where(img <= 0.0031308, 12.92 * img,
+                       1.055 * torch.pow(img, 1 / 2.4) - 0.055)
+
+# Note: expects numpy format image (H x W x C)
+# expects square format and clean multiple
+def resize(img, output_size):
+    input_size = img.shape[0]
+    bin_size = input_size // output_size
+
+    assert bin_size * output_size == input_size, "multiple must be exact"
+
+    return img.reshape(
+        (output_size, bin_size, output_size, bin_size, 3)).mean(3).mean(1)
 
 
 class RenderedDataset(torch.utils.data.Dataset):
-    def __init__(self, npy_path, img_path, transform=None):
-        self.data = np.load(npy_path)
+    def __init__(self, p_path, img_path, resolution, transform=None):
+        with open(p_path, "rb") as f:
+            self.data = pickle.load(f)
         self.img_path = img_path
         self.transform = transform
+        self.resolution = resolution
 
     def __getitem__(self, index):
-        image = io.imread(
+        image = load_exr(
             os.path.join(self.img_path,
-                         "img_{}.png".format(index)))[:, :, :3].astype(
-                             np.float32) / 255.0
+                         "img_{}.exr".format(index)))
+
+        assert image.shape[0] == image.shape[1], "must be square"
+
+        if image.shape[0] != self.resolution:
+            image = resize(image, self.resolution)
+
         inp = self.data[index]
 
         sample = {'image': image, 'inp': inp}
@@ -52,7 +95,6 @@ class SubsetSampler(torch.utils.data.sampler.Sampler):
     Arguments:
         indices (sequence): a sequence of indices
     """
-
     def __init__(self, indices):
         self.indices = indices
 
@@ -63,14 +105,34 @@ class SubsetSampler(torch.utils.data.sampler.Sampler):
         return len(self.indices)
 
 
-def load_dataset(npy_path,
+def variable_length_collate_fn(batch):
+    splits = []
+    prev_c = 0
+    for b in batch:
+        b = b["inp"]
+        next_c = prev_c + b.size(0)
+        splits.append((prev_c, next_c))
+
+        prev_c = next_c
+
+    inp_cat = torch.cat([b["inp"] for b in batch], dim=0)
+
+    image_stack = torch.stack([b["image"] for b in batch])
+
+    return splits, {"inp": inp_cat, "image": image_stack}
+
+def load_dataset(p_path,
                  img_path,
+                 resolution,
                  batch_size,
                  validation_prop,
                  seed,
                  shuffle_split,
                  num_workers=0):
-    dataset = RenderedDataset(npy_path, img_path, transform=ToTensor())
+    dataset = RenderedDataset(p_path,
+                              img_path,
+                              resolution,
+                              transform=ToTensor())
 
     dataset_size = len(dataset)
 
@@ -92,6 +154,7 @@ def load_dataset(npy_path,
             batch_size=batch_size,
             num_workers=num_workers,
             sampler=sampler,
+            collate_fn=variable_length_collate_fn,
         )
 
     train_loader = make_loader(train_sampler)

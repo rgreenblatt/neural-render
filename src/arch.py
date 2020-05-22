@@ -3,16 +3,22 @@ import re
 from distutils.util import strtobool
 import math
 
-# Parameters for the entire model (TODO: non-local etc)
+# Parameters for the entire model
 GlobalParams = collections.namedtuple('GlobalParams', [
     'start_width', 'end_width', 'input_size', 'input_expand_size',
-    'nonlocal_index', 'norm_style'
+    'nonlocal_index', 'norm_style', 'base_feature_extractor_args'
 ])
 
-# Parameters for each model block (TODO)
+# Parameters for each model block
 BlockArgs = collections.namedtuple('BlockArgs', [
     'num_repeat', 'kernel_size', 'upsample', 'expand_ratio', 'input_ch',
-    'output_ch', 'se_ratio', 'show_position', 'res'
+    'output_ch', 'se_ratio', 'show_position', 'res', 'feature_extractor_args'
+])
+
+# Parameters for the input feature extraction
+FeatureExtractorArgs = collections.namedtuple('FeatureExtractorArgs', [
+    'has_channel_input', 'input_ch', 'mix_ch', 'embedding_size',
+    'reduced_stats_size', 'expand_stat_embedding_size', 'output_size'
 ])
 
 
@@ -21,7 +27,7 @@ def net_params(width_coefficient=1.0,
                base_min_ch=16,
                start_width=4,
                input_size=3,
-               input_expand_size=15,
+               input_expand_size=12,
                output_width=512,
                non_local_width=64,
                chan_multiplier=2,
@@ -52,6 +58,8 @@ def net_params(width_coefficient=1.0,
     # TODO: tuning
     for i in range(num_upsamples):
         ch_after = ch_before / chan_multiplier
+        input_ch = round(ch_before)
+        output_ch = round(ch_after)
         blocks_args.append(
             BlockArgs(
                 num_repeat=round(num_repeat * depth_coefficient),
@@ -61,20 +69,41 @@ def net_params(width_coefficient=1.0,
                 upsample=True,
                 # TODO: tune
                 expand_ratio=6,
-                input_ch=round(ch_before),
-                output_ch=round(ch_after),
+                input_ch=input_ch,
+                output_ch=output_ch,
                 se_ratio=0.25,
                 show_position=True,
                 res=res,
-            ))
+                # all these numbers are super arbitrary
+                feature_extractor_args=FeatureExtractorArgs(
+                    has_channel_input=True,
+                    input_ch=input_ch,
+                    mix_ch=input_expand_size * 4,
+                    embedding_size=8,
+                    reduced_stats_size=32,
+                    expand_stat_embedding_size=128,
+                    output_size=input_expand_size * 2,
+                )))
         ch_before = ch_after
         res *= 2
 
-    global_params = GlobalParams(start_width=start_width,
-                                 end_width=output_width,
-                                 input_size=input_size,
-                                 input_expand_size=input_expand_size,
-                                 nonlocal_index=nonlocal_index,
-                                 norm_style=norm_style)
+    base_extractor_out = round(initial_ch) * start_width**2
+
+    global_params = GlobalParams(
+        start_width=start_width,
+        end_width=output_width,
+        input_size=input_size,
+        input_expand_size=input_expand_size,
+        nonlocal_index=nonlocal_index,
+        norm_style=norm_style,
+        base_feature_extractor_args=FeatureExtractorArgs(
+            has_channel_input=False,
+            input_ch=None,
+            mix_ch=base_extractor_out // 4,
+            embedding_size=32,
+            reduced_stats_size=128,
+            expand_stat_embedding_size=265,
+            output_size=base_extractor_out,
+        ))
 
     return blocks_args, global_params

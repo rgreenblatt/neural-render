@@ -87,7 +87,7 @@ class MBConvGBlock(nn.Module):
         self.which_bn = functools.partial(
             ccbn,
             which_linear=bn_linear,
-            input_size=global_params.input_expand_size,
+            input_size=block_args.feature_extractor_args.output_size,
             norm_style=global_params.norm_style)
 
         self._bn0 = self.which_bn(inp)
@@ -236,3 +236,138 @@ class Attention(nn.Module):
             torch.bmm(g, beta.transpose(1, 2)).view(-1, self.ch // 2,
                                                     x.shape[2], x.shape[3]))
         return self.gamma * o + x
+
+
+# This probably needs a bunch of tunning
+class FeatureExtractor(nn.Module):
+    def __init__(self, block_args, global_params):
+        super().__init__()
+        self._block_args = block_args
+
+        self._swish = MemoryEfficientSwish()
+
+        if self._block_args.has_channel_input:
+            self._avg_pool = nn.AdaptiveMaxPool2d(1)
+            self._ch_to_mix = nn.Linear(self._block_args.input_ch,
+                                        self._block_args.mix_ch,
+                                        bias=False)
+        self._input_to_mix = nn.Linear(global_params.input_expand_size,
+                                       self._block_args.mix_ch,
+                                       bias=True)
+        self._embedding = nn.Linear(self._block_args.mix_ch,
+                                    self._block_args.embedding_size,
+                                    bias=True)
+        self._reduce_stats_feature = nn.Linear(
+            1 + 2 * (self._block_args.embedding_size +
+                     self._block_args.embedding_size**2),
+            self._block_args.reduced_stats_size,
+            bias=True)
+        self._expand_stat_embeddings = nn.Linear(
+            self._block_args.reduced_stats_size +
+            self._block_args.embedding_size,
+            self._block_args.expand_stat_embedding_size,
+            bias=True)
+        self._to_multipliers = nn.Linear(
+            self._block_args.expand_stat_embedding_size,
+            self._block_args.output_size,
+            bias=True)
+
+        self._hidden = nn.Linear(self._block_args.mix_ch,
+                                 self._block_args.output_size,
+                                 bias=True)
+
+    def set_swish(self, memory_efficient=True):
+        """Sets swish function as memory efficient (for training) or standard (for export).
+
+        Args:
+            memory_efficient (bool): Whether to use memory-efficient version of swish.
+        """
+        self._swish = MemoryEfficientSwish() if memory_efficient else Swish()
+
+    def forward(self, inputs, splits, channels=None):
+
+        if inputs.nelement() == 0:
+            return torch.zeros((len(splits), self._block_args.output_size),
+                               dtype=inputs.dtype,
+                               device=inputs.device)
+
+        x = self._input_to_mix(inputs)
+
+        if self._block_args.has_channel_input:
+            avg_ch = self._avg_pool(channels).view(channels.size(0), -1)
+            mix_ch = self._ch_to_mix(avg_ch)
+            mix_ch_resized = torch.cat([
+                mix_ch[i].view(-1).expand(after - prev, -1)
+                for i, (prev, after) in enumerate(splits)
+            ])
+
+            x = mix_ch_resized + x
+
+        # TODO: consider adding bn (somewhat strange/not sure it would do what
+        # I want)
+        x = self._swish(x)
+
+        embedding = self._embedding(x)
+
+        stats = []
+
+        all_products = embedding[:, None, :] * embedding[:, :, None]
+
+        # may not be peak efficiency...
+        for i, (prev, after) in enumerate(splits):
+            count = after - prev
+            if count == 0:
+                continue
+
+            count_t = torch.tensor([count],
+                                   dtype=inputs.dtype,
+                                   device=inputs.device).view(1, 1)
+            b_embed = embedding[prev:after]
+
+            # roughly expectation
+            b_avgs = torch.mean(b_embed, dim=0, keepdim=True)
+
+            # all combinations of products (for covariance matrix)
+            b_all_products = all_products[prev:after].view(count, -1)
+
+            # roughly covariance (as vector)
+            b_all_products_avgs = torch.mean(b_all_products,
+                                             dim=0,
+                                             keepdim=True)
+
+            stats_feature = torch.cat(
+                (count_t, b_avgs, b_all_products_avgs, b_avgs * count_t,
+                 b_all_products_avgs * count_t),
+                dim=1)
+
+            stats_feature_reduced = self._swish(
+                self._reduce_stats_feature(stats_feature))
+
+            stats.append(stats_feature_reduced.expand(count, -1))
+
+        stats = torch.cat(stats, dim=0)
+        expanded = self._expand_stat_embeddings(
+            torch.cat((stats, embedding), dim=1))
+        expanded = self._swish(expanded)
+        multipliers = torch.sigmoid(self._to_multipliers(expanded))
+
+        hidden_values = self._swish(self._hidden(x))
+
+        pre_sum = multipliers * hidden_values
+
+        out = []
+
+        for i, (prev, after) in enumerate(splits):
+            count = after - prev
+
+            if count == 0:
+                out.append(
+                    torch.zeros((1, self._block_args.output_size),
+                                dtype=inputs.dtype,
+                                device=inputs.device))
+            else:
+                out.append(torch.mean(pre_sum[prev:after], dim=0, keepdim=True))
+
+        out = torch.cat(out, dim=0)
+
+        return out
