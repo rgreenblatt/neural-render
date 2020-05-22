@@ -76,6 +76,7 @@ class RandomScene():
         return base_scale * components_scale
 
     def _random_material(self, bsdf):
+        # base color: 0 (0-1)
         # metallic: 4 (0-1)
         # specular: 5 (0-++ - mostly 0-1)
         # roughness: 7 (0-1 ? maybe higher but this should be decent default)
@@ -181,13 +182,20 @@ def main():
         parser = argparse.ArgumentParser()
         parser.add_argument('--resolution', type=int, default=128)
         parser.add_argument('--samples', type=int, default=128)
+        parser.add_argument('--count', type=int, default=128)
+        parser.add_argument('--seed', type=int, default=0)
         args = parser.parse_args(argv)
 
         bpy.context.scene.render.resolution_x = args.resolution
         bpy.context.scene.render.resolution_y = args.resolution
 
-
         bpy.context.scene.cycles.samples = args.samples
+
+        count = args.count
+        seed = args.seed
+    else:
+        count = 1
+        seed = 0
 
     save_dir = "data/"
 
@@ -214,13 +222,7 @@ def main():
     bpy.data.worlds["World"].node_tree.nodes["Background"].inputs[
         0].default_value = (0, 0, 0, 1)
 
-    np.random.seed(0)
-
-    if not in_blender_mode:
-        # count = 2**12
-        count = 128
-    else:
-        count = 1
+    np.random.seed(seed)
 
     scenes = []
 

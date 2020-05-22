@@ -1,0 +1,51 @@
+FROM nvidia/cudagl:10.1-base-ubuntu18.04
+
+LABEL Author="Or Fleisher <or.fleisher@nytimes.com>"
+LABEL Title="Blender in Docker"
+
+# Enviorment variables
+ENV DEBIAN_FRONTEND noninteractive
+ENV LC_ALL C.UTF-8
+ENV LANG C.UTF-8
+ENV PATH "$PATH:/bin/2.83/python/bin/"
+ENV BLENDER_PATH "/bin/2.83"
+ENV BLENDERPIP "/bin/2.83/python/bin/pip3"
+ENV BLENDERPY "/bin/2.83/python/bin/python3.7m"
+ENV HW="GPU"
+
+# Install dependencies
+RUN apt-get update && apt-get install -y \ 
+	wget \ 
+	libopenexr-dev \ 
+	bzip2 \ 
+	build-essential \ 
+	zlib1g-dev \ 
+	libxmu-dev \ 
+	libxi-dev \ 
+	libxxf86vm-dev \ 
+	libfontconfig1 \ 
+	libxrender1 \ 
+	libgl1-mesa-glx \ 
+	xz-utils
+
+# Download and install Blender
+RUN wget https://builder.blender.org/download/blender-2.83-8a8c61190b06-linux64.tar.xz \
+	&& tar -xvf blender-2.83-8a8c61190b06-linux64.tar.xz --strip-components=1 -C /bin \ 
+	&& rm -rf blender-2.83-8a8c61190b06-linux64.tar.xz \ 
+	&& rm -rf blender-2.83-8a8c61190b06-linux64
+
+# Download the Python source since it is not bundled with Blender
+RUN wget https://www.python.org/ftp/python/3.7.7/Python-3.7.7.tgz \ 
+	&& tar -xzf Python-3.7.7.tgz \ 
+	&& cp -r Python-3.7.7/Include/* $BLENDER_PATH/python/include/python3.7m/ \ 
+	&& rm -rf Python-3.7.7.tgz \ 
+	&& rm -rf Python-3.7.7 
+
+# Blender comes with a super outdated version of numpy (which is needed for matplotlib / opencv) so override it with a modern one
+RUN rm -rf ${BLENDER_PATH}/python/lib/python3.7/site-packages/numpy 
+
+# Must first ensurepip to install Blender pip3 and then new numpy
+RUN ${BLENDERPY} -m ensurepip && ${BLENDERPIP} install --upgrade pip && ${BLENDERPIP} install numpy tqdm
+
+# Set the working directory
+WORKDIR /
