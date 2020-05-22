@@ -226,6 +226,10 @@ def main():
 
     scenes = []
 
+    # sometimes required to "refresh" devices (doesn't need to be printed)
+    print("devices are:",
+          bpy.context.preferences.addons['cycles'].preferences.get_devices())
+
     bpy.context.scene.render.image_settings.file_format = 'OPEN_EXR'
     bpy.context.scene.render.engine = 'CYCLES'
     bpy.context.scene.cycles.device = 'GPU'
