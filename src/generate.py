@@ -234,7 +234,7 @@ def main():
     bpy.context.scene.render.engine = 'CYCLES'
     bpy.context.scene.cycles.device = 'GPU'
     bpy.context.preferences.addons[
-        'cycles'].preferences.compute_device_type = "OPTIX"
+        'cycles'].preferences.compute_device_type = "CUDA"
 
     for i in tqdm(range(count)):
         scene = RandomScene()
