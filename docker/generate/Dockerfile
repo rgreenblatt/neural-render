@@ -1,5 +1,6 @@
 FROM greenblattryan/blender-render
 
+WORKDIR /root/
 RUN apt-get update && apt-get install -y git
 RUN git clone https://github.com/rgreenblatt/neural-render
 WORKDIR /root/neural-render
