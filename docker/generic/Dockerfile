@@ -7,7 +7,10 @@ RUN apt-get update && apt-get install -y \
         wget \
         vim \
         zip \
+        build-essential \
+        libopenexr-dev \
         git
+
 ENV PATH /opt/conda/bin:$PATH
 
 RUN curl -fsSL -v -o ~/miniconda.sh -O  https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh  && \
@@ -17,5 +20,5 @@ RUN curl -fsSL -v -o ~/miniconda.sh -O  https://repo.anaconda.com/miniconda/Mini
     /opt/conda/bin/conda install -y python=3.7 conda-build pyyaml numpy ipython tensorboard && \
     /opt/conda/bin/conda clean -ya
 
-RUN /opt/conda/bin/conda install -y pytorch torchvision cudatoolkit=10.1 cudnn
-RUN /opt/conda/bin/conda install -c conda-forge -y openexr
+RUN /opt/conda/bin/conda install -y pytorch torchvision cudatoolkit=10.1 cudnn pip
+RUN pip install OpenEXR
