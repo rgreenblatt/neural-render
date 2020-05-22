@@ -4,7 +4,6 @@ import pickle
 import torchvision
 import torch
 import numpy as np
-from skimage import io, transform
 import OpenEXR as exr
 from Imath import PixelType
 

@@ -24,6 +24,7 @@ def main():
     parser.add_argument('--test-images-to-save', type=int, default=16)
     parser.add_argument('--save-model-every', type=int, default=5)
     parser.add_argument('--name', required=True)
+    parser.add_argument('--norm-type', default='bn')
     args = parser.parse_args()
 
     torch.backends.cudnn.benchmark = True
@@ -51,7 +52,8 @@ def main():
     blocks_args, global_params = net_params(base_min_ch=32,
                                             output_width=img_width,
                                             input_size=input_size,
-                                            input_expand_size=4 * input_size)
+                                            input_expand_size=4 * input_size,
+                                            norm_type=args.norm_type)
 
     net = Net(blocks_args, global_params).to(device)
 
