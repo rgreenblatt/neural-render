@@ -8,22 +8,33 @@ from torch.nn import Parameter as P
 from utils import (Swish, MemoryEfficientSwish)
 
 
+# Simple function to handle groupnorm norm stylization
+def groupnorm(x, norm_style):
+    # If number of channels specified in norm_style:
+    if 'ch' in norm_style:
+        ch = int(norm_style.split('_')[-1])
+        groups = max(int(x.shape[1]) // ch, 1)
+    # If number of groups specified in norm style
+    elif 'grp' in norm_style:
+        groups = int(norm_style.split('_')[-1])
+    # If neither, default to groups = 16
+    else:
+        groups = 16
+    return F.group_norm(x, groups)
+
+
 # From big gan...
-class ccbn(nn.Module):
+class configurable_norm(nn.Module):
     def __init__(
         self,
         output_size,
-        input_size,
-        which_linear,
+        input_gain_bias,
         eps=1e-5,
         momentum=0.1,
         norm_style='bn',
     ):
-        super(ccbn, self).__init__()
-        self.output_size, self.input_size = output_size, input_size
-        # Prepare gain and bias layers
-        self.gain = which_linear(input_size, output_size)
-        self.bias = which_linear(input_size, output_size)
+        super().__init__()
+        self.output_size = output_size
         # epsilon to avoid dividing by 0
         self.eps = eps
         # Momentum
@@ -31,29 +42,54 @@ class ccbn(nn.Module):
         # Norm style?
         self.norm_style = norm_style
 
-        if self.norm_style in ['bn', 'in']:
+        self.input_gain_bias = input_gain_bias
+
+        if not self.input_gain_bias:
+            self.gain = nn.Parameter(torch.Tensor(output_size))
+            self.bias = nn.Parameter(torch.Tensor(output_size))
+
+        self.track_running_stats = self.norm_style in ['bn', 'in']
+
+        if self.track_running_stats:
             self.register_buffer('stored_mean', torch.zeros(output_size))
             self.register_buffer('stored_var', torch.ones(output_size))
 
-    def forward(self, x, y):
-        # Calculate class-conditional gains and biases
-        gain = (1 + self.gain(y)).view(y.size(0), -1, 1, 1)
-        bias = self.bias(y).view(y.size(0), -1, 1, 1)
+        self.reset_parameters()
 
+    def reset_running_stats(self):
+        if self.track_running_stats:
+            self.stored_mean.zero_()
+            self.stored_var.fill_(1)
+
+    def reset_parameters(self):
+        self.reset_running_stats()
+        if not self.input_gain_bias:
+            nn.init.ones_(self.gain)
+            nn.init.zeros_(self.bias)
+
+    def forward(self, x, gain=None, bias=None):
         if self.norm_style == 'bn':
             out = F.batch_norm(x, self.stored_mean, self.stored_var, None,
-                               None, self.training, 0.1, self.eps)
+                               None, self.training, self.momentum, self.eps)
         elif self.norm_style == 'in':
             out = F.instance_norm(x, self.stored_mean, self.stored_var, None,
-                                  None, self.training, 0.1, self.eps)
-        elif self.norm_style == 'gn':
-            out = groupnorm(x, self.normstyle)
+                                  None, self.training, self.momentum, self.eps)
+        elif self.norm_style.startswith('gn'):
+            out = groupnorm(x, self.norm_style)
         elif self.norm_style == 'nonorm':
             out = x
+
+        if self.input_gain_bias:
+            gain = gain.view(gain.size(0), -1, 1, 1)
+            bias = bias.view(bias.size(0), -1, 1, 1)
+        else:
+            gain = self.gain.view(1, -1, 1, 1)
+            bias = self.bias.view(1, -1, 1, 1)
+
         return out * gain + bias
 
     def extra_repr(self):
-        s = 'out: {output_size}, in: {input_size},'
+        s = 'out: {output_size},'
         s += ' norm_style={norm_style}'
         return s.format(**self.__dict__)
 
@@ -83,21 +119,17 @@ class MBConvGBlock(nn.Module):
         # number of output channels
         oup = self._block_args.input_ch * self._block_args.expand_ratio
 
-        bn_linear = functools.partial(nn.Linear, bias=True)
-        self.which_bn = functools.partial(
-            ccbn,
-            which_linear=bn_linear,
-            input_size=block_args.feature_extractor_args.output_size,
-            norm_style=global_params.norm_style)
+        self.which_norm = functools.partial(
+            configurable_norm, norm_style=global_params.norm_style)
 
-        self._bn0 = self.which_bn(inp)
+        self._bn0 = self.which_norm(inp, input_gain_bias=True)
 
         if self._block_args.expand_ratio != 1:
             self._expand_conv = nn.Conv2d(in_channels=inp,
                                           out_channels=oup,
                                           kernel_size=1,
                                           bias=False)
-            self._bn1 = self.which_bn(oup)
+            self._bn1 = self.which_norm(oup, input_gain_bias=False)
 
         # Depthwise convolution phase
         k = self._block_args.kernel_size
@@ -108,7 +140,7 @@ class MBConvGBlock(nn.Module):
             kernel_size=k,
             bias=False,
             padding=1)
-        self._bn2 = self.which_bn(oup)
+        self._bn2 = self.which_norm(oup, input_gain_bias=False)
 
         # Squeeze and Excitation layer, if desired
         if self.has_se:
@@ -133,7 +165,7 @@ class MBConvGBlock(nn.Module):
 
         self._upsample = functools.partial(F.interpolate, scale_factor=2)
 
-    def forward(self, inputs, original_input_expanded, position_ch):
+    def forward(self, inputs, bn_gains_biases, position_ch):
         """MBConvBlock's forward function.
 
         Args:
@@ -145,7 +177,18 @@ class MBConvGBlock(nn.Module):
 
         # Expansion and Depthwise Convolution
         x = inputs
-        x = self._bn0(x, original_input_expanded)
+
+        total_used = 0
+
+        def get_chunk(size):
+            nonlocal total_used
+
+            out = bn_gains_biases[:, total_used:size + total_used]
+            total_used += size
+
+            return out
+
+        x = self._bn0(x, get_chunk(x.size(1)), get_chunk(x.size(1)))
         x = self._swish(x)
 
         if self._block_args.show_position:
@@ -156,7 +199,7 @@ class MBConvGBlock(nn.Module):
 
         if self._block_args.expand_ratio != 1:
             x = self._expand_conv(inputs)
-            x = self._bn1(x, original_input_expanded)
+            x = self._bn1(x)
             x = self._swish(x)
 
         if self._block_args.upsample:
@@ -164,7 +207,7 @@ class MBConvGBlock(nn.Module):
             inputs = self._upsample(inputs)[:, :self._block_args.output_ch]
 
         x = self._depthwise_conv(x)
-        x = self._bn2(x, original_input_expanded)
+        x = self._bn2(x)
         x = self._swish(x)
 
         # Squeeze and Excitation
@@ -178,7 +221,9 @@ class MBConvGBlock(nn.Module):
         # Pointwise Convolution
         x = self._project_conv(x)
 
-        return x + inputs
+        return torch.cat((x[:, :self._block_args.input_ch] + inputs,
+                          x[:, self._block_args.input_ch:]),
+                         dim=1)
 
     def set_swish(self, memory_efficient=True):
         """Sets swish function as memory efficient (for training) or standard (for export).
@@ -255,26 +300,29 @@ class FeatureExtractor(nn.Module):
                                        self._block_args.mix_ch,
                                        bias=True)
         self._embedding = nn.Linear(self._block_args.mix_ch,
-                                    self._block_args.embedding_size,
+                                    self._block_args.initial_embedding_size,
                                     bias=True)
         self._reduce_stats_feature = nn.Linear(
-            1 + 2 * (self._block_args.embedding_size +
-                     self._block_args.embedding_size**2),
+            1 + 2 * (self._block_args.initial_embedding_size +
+                     self._block_args.initial_embedding_size**2),
             self._block_args.reduced_stats_size,
             bias=True)
-        self._expand_stat_embeddings = nn.Linear(
+        self._to_embedding_info = nn.Linear(
             self._block_args.reduced_stats_size +
-            self._block_args.embedding_size,
-            self._block_args.expand_stat_embedding_size,
+            self._block_args.initial_embedding_size,
+            self._block_args.embedding_info_size,
             bias=True)
-        self._to_multipliers = nn.Linear(
-            self._block_args.expand_stat_embedding_size,
-            self._block_args.output_size,
+        self._to_linear_sum = nn.Linear(self._block_args.embedding_info_size +
+                                        self._block_args.mix_ch,
+                                        self._block_args.linear_sum_size,
+                                        bias=True)
+        self._to_linear_multipliers = nn.Linear(
+            self._block_args.embedding_info_size,
+            self._block_args.linear_sum_size,
             bias=True)
-
-        self._hidden = nn.Linear(self._block_args.mix_ch,
-                                 self._block_args.output_size,
-                                 bias=True)
+        self._to_linear_out = nn.Linear(self._block_args.linear_sum_size,
+                                        self._block_args.linear_output_size,
+                                        bias=True)
 
     def set_swish(self, memory_efficient=True):
         """Sets swish function as memory efficient (for training) or standard (for export).
@@ -287,9 +335,8 @@ class FeatureExtractor(nn.Module):
     def forward(self, inputs, splits, channels=None):
 
         if inputs.nelement() == 0:
-            return torch.zeros((len(splits), self._block_args.output_size),
-                               dtype=inputs.dtype,
-                               device=inputs.device)
+            return self._to_linear_out.bias.view(
+                1, self._block_args.linear_output_size)
 
         x = self._input_to_mix(inputs)
 
@@ -307,7 +354,8 @@ class FeatureExtractor(nn.Module):
         # I want)
         x = self._swish(x)
 
-        embedding = self._embedding(x)
+        # TODO: for triangles we will need to ~greatly~ reduce this
+        embedding = self._swish(self._embedding(x))
 
         stats = []
 
@@ -346,28 +394,40 @@ class FeatureExtractor(nn.Module):
             stats.append(stats_feature_reduced.expand(count, -1))
 
         stats = torch.cat(stats, dim=0)
-        expanded = self._expand_stat_embeddings(
-            torch.cat((stats, embedding), dim=1))
-        expanded = self._swish(expanded)
-        multipliers = torch.sigmoid(self._to_multipliers(expanded))
 
-        hidden_values = self._swish(self._hidden(x))
+        # final_embedding = self._embed_with_stats(
+        #     torch.cat((stats, embedding), dim=1))
 
-        pre_sum = multipliers * hidden_values
+        embedding_info = self._swish(
+            self._to_embedding_info(torch.cat((stats, embedding), dim=1)))
 
-        out = []
+        # linear block
+        x = torch.cat((embedding_info, x), dim=1)
+
+        linear_sum = self._swish(self._to_linear_sum(x))
+        linear_multipliers = torch.sigmoid(
+            self._to_linear_multipliers(embedding_info))
+
+        linear_sum = linear_sum * linear_multipliers
+
+        linear_totals = []
 
         for i, (prev, after) in enumerate(splits):
             count = after - prev
 
             if count == 0:
-                out.append(
-                    torch.zeros((1, self._block_args.output_size),
+                linear_totals.append(
+                    torch.zeros((1, self._block_args.linear_sum_size),
                                 dtype=inputs.dtype,
                                 device=inputs.device))
             else:
-                out.append(torch.mean(pre_sum[prev:after], dim=0, keepdim=True))
+                linear_totals.append(
+                    torch.mean(linear_sum[prev:after], dim=0, keepdim=True))
 
-        out = torch.cat(out, dim=0)
+        linear_totals = torch.cat(linear_totals, dim=0)
 
-        return out
+        linear_out = self._to_linear_out(linear_totals)
+
+        # TODO: conv block
+
+        return linear_out

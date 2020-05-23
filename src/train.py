@@ -49,15 +49,48 @@ def main():
 
     input_size = 20
 
-    blocks_args, global_params = net_params(base_min_ch=32,
-                                            output_width=img_width,
-                                            input_size=input_size,
+    blocks_args, global_params = net_params(input_size=input_size,
                                             input_expand_size=4 * input_size,
+                                            output_width=img_width,
                                             norm_style=args.norm_style)
 
     net = Net(blocks_args, global_params).to(device)
 
     print(net)
+
+    def recursive_param_print(module, memo=None, value='', name="net"):
+        if memo is None:
+            memo = set()
+
+        total = 0
+        to_print = ""
+
+        if module not in memo:
+            memo.add(module)
+
+            for m_name, c_module in module.named_children():
+                child_total, child_to_print = recursive_param_print(
+                    c_module, memo, "  " + value, name=m_name)
+
+                total += child_total
+                to_print += child_to_print
+
+            for p_name, param in module.named_parameters(recurse=False):
+                if param.requires_grad:
+                    this_param_total = param.numel()
+                    total += this_param_total
+                    to_print += "  " + value + p_name + " (param) : {}\n".format(
+                        this_param_total)
+
+            if total != 0:
+                to_print = value + name + ": {}\n".format(total) + to_print
+
+        return total, to_print
+
+    print()
+
+    total, to_print = recursive_param_print(net)
+    print(to_print)
 
     # TODO: consider switching to l1 (as opposed to l2)
     criterion = torch.nn.MSELoss()
