@@ -26,7 +26,7 @@ def main():
     parser.add_argument('--save-model-every', type=int, default=5)
     parser.add_argument('--name', required=True)
     parser.add_argument('--norm-style', default='bn')
-    parser.add_argument('--max-ch', type=int, default=512)
+    parser.add_argument('--max-ch', type=int, default=256)
     args = parser.parse_args()
 
     torch.backends.cudnn.benchmark = True
@@ -51,13 +51,13 @@ def main():
 
     input_size = 20
 
-    blocks_args, global_params = net_params(input_size=input_size,
-                                            input_expand_size=4 * input_size,
-                                            output_width=img_width,
-                                            max_ch=args.max_ch,
-                                            norm_style=args.norm_style)
+    blocks_args, global_args = net_params(input_size=input_size,
+                                          seq_size=128,
+                                          output_width=img_width,
+                                          max_ch=args.max_ch,
+                                          norm_style=args.norm_style)
 
-    net = Net(blocks_args, global_params).to(device)
+    net = Net(blocks_args, global_args).to(device)
 
     print(net)
 
