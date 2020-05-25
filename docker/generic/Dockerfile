@@ -21,4 +21,4 @@ RUN curl -fsSL -v -o ~/miniconda.sh -O  https://repo.anaconda.com/miniconda/Mini
     /opt/conda/bin/conda clean -ya
 
 RUN /opt/conda/bin/conda install -y pytorch torchvision cudatoolkit=10.1 cudnn pip
-RUN pip install OpenEXR
+RUN pip install imageio

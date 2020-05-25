@@ -4,6 +4,7 @@ import torch
 import torch.nn as nn
 from torch.nn import functional as F
 from torch.nn import Parameter as P
+import numpy as np
 
 from utils import (Swish, MemoryEfficientSwish)
 
@@ -92,6 +93,296 @@ class configurable_norm(nn.Module):
         s = 'out: {output_size},'
         s += ' norm_style={norm_style}'
         return s.format(**self.__dict__)
+
+
+def split_last(x, shape):
+    "split the last dimension to given shape"
+    shape = list(shape)
+    assert shape.count(-1) <= 1
+    if -1 in shape:
+        shape[shape.index(-1)] = int(x.size(-1) / -np.prod(shape))
+
+    return x.view(*x.size()[:-1], *shape)
+
+
+def merge_last(x, n_dims):
+    "merge the last n_dims to a dimension"
+    s = x.size()
+    assert n_dims > 1 and n_dims < len(s)
+
+    return x.view(*s[:-n_dims], -1)
+
+
+class MultiHeadedSelfAttention(nn.Module):
+    """ Multi-Headed Dot Product Attention """
+    def __init__(self,
+                 input_size,
+                 key_size,
+                 output_size,
+                 n_heads,
+                 input_reduce_key=False):
+        super().__init__()
+
+        self.input_reduce_key = input_reduce_key
+
+        self._proj_q = nn.Linear(input_size, key_size)
+        self._proj_v = nn.Linear(input_size, output_size)
+
+        if not self.input_reduce_key:
+            self._proj_k = nn.Linear(input_size, key_size)
+
+            # added here (TODO: ablation etc important)
+            self._proj_c = nn.Linear(input_size, output_size)
+
+        self.n_heads = n_heads
+
+    def forward(self, x, splits, reduce_key=None):
+        """
+        We incorporate sequences length into the batch dimension and
+        include "splits" as an input
+
+        TODO: make this efficient with respect to long sequences
+
+        x, q(query), k(key), v(value), c(carry) : (BS(batch * seq), D(dim))
+        * split D(dim) into (H(n_heads), W(width of head)) ; D = H * W
+
+        For the key and query, W correponds to key_size (WK).
+        For the value, W correponds to output_size (WO).
+        """
+
+        # (BS, D) -proj-> (BS, D) -split-> (BS, H, W)
+
+        if self.input_reduce_key:
+            k = reduce_key
+        else:
+            k = self._proj_k(x)
+
+            # I think this might not be needed in general
+            c = self._proj_c(x)
+
+        q = self._proj_q(x)
+        v = self._proj_v(x)
+
+        q, k, v = (split_last(x, (self.n_heads, -1)) for x in [q, k, v])
+
+        h_values = []
+
+        # handle each batch element independently (for now at least)
+        for i, (prev, after) in enumerate(splits):
+            # (BS, H, W) -slice-> (S, H, W) -transpose-> (H, S, W)
+            # -unsqueeze-> (1, H, S, W)
+            # we mostly unsqueeze for consistancy with standard models
+            # if using reduce_key, then b_k is:
+            # (B, S*, H, W) -index-> (S*, H, W) -transpose-> (H, S*, W)
+            # -unsqueeze-> (1, H, S*, W)
+            # S* can be anything
+
+            if self.input_reduce_key:
+                b_k = k[i]
+            else:
+                b_k = k[prev:after]
+
+            b_q, b_v = (x[prev:after] for x in [q, v])
+            b_q, b_k, b_v = (x.transpose(0, 1)[None] for x in [b_q, b_k, b_v])
+
+            # (1, H, S, WK) @ (1, H, WK, S) -> (1, H, S, S)
+            scores = b_q @ b_k.transpose(-2, -1) / np.sqrt(b_k.size(-1))
+
+            # (1, H, S, S) -softmax-> (1, H, S, S) (could have dropout)
+            scores = F.softmax(scores, dim=-1)
+
+            # (1, H, S, S) @ (1, H, S, WV) -> (1, H, S, WV)
+            # -trans-> (1, S, H, WV)
+            h = (scores @ b_v).transpose(1, 2).contiguous()
+            # -merge-> (S, D)
+            h = merge_last(h, 2).squeeze(0)
+
+            h_values.append(h)
+
+        if self.input_reduce_key:
+            out = torch.stack(h_values)
+        else:
+            out = torch.cat(h_values, dim=0)
+
+        if not self.input_reduce_key:
+            out = out + c
+
+        return out
+
+
+class PositionWiseFeedForward(nn.Module):
+    """ FeedForward Neural Networks for each position """
+    def __init__(self, cfg):
+        super().__init__()
+        self._fc1 = nn.Linear(cfg.size, cfg.hidden_ff_size)
+        self._fc2 = nn.Linear(cfg.hidden_ff_size, cfg.size)
+        self._swish = MemoryEfficientSwish()
+
+    def forward(self, x):
+        # (B, S, D) -> (B, S, D_ff) -> (B, S, D)
+        return self._fc2(self._swish(self._fc1(x)))
+
+    def set_swish(self, memory_efficient=True):
+        """Sets swish function as memory efficient (for training) or standard
+           (for export).
+
+        Args:
+            memory_efficient (bool): Whether to use memory-efficient version of
+            swish.
+        """
+        self._swish = MemoryEfficientSwish() if memory_efficient else Swish()
+
+
+class LayerNorm(nn.Module):
+    "A layernorm module in the TF style (epsilon inside the square root)."
+
+    def __init__(self, size, variance_epsilon=1e-12):
+        super().__init__()
+        self.gamma = nn.Parameter(torch.ones(size))
+        self.beta = nn.Parameter(torch.zeros(size))
+        self.variance_epsilon = variance_epsilon
+
+    def forward(self, x):
+        u = x.mean(-1, keepdim=True)
+        s = (x - u).pow(2).mean(-1, keepdim=True)
+        x = (x - u) / torch.sqrt(s + self.variance_epsilon)
+        return self.gamma * x + self.beta
+
+
+class Transformer(nn.Module):
+    """ Transformer with Self-Attentive Blocks and parameter sharing"""
+    def __init__(self, cfg):
+        super().__init__()
+        self.n_layers = cfg.n_layers
+        self._attn = MultiHeadedSelfAttention(cfg.size, cfg.size, cfg.size,
+                                              cfg.n_heads)
+        self._proj = nn.Linear(cfg.size, cfg.size)
+        self._norm1 = LayerNorm(cfg.size)
+        self._pwff = PositionWiseFeedForward(cfg)
+        self._norm2 = LayerNorm(cfg.size)
+
+    def forward(self, h, splits):
+        # NOTE to self, masking may be useful...
+        for _ in range(self.n_layers):
+            prev_layer = h
+            h = self._attn(h, splits)
+            h = self._norm1(prev_layer + self._proj(h))
+            h = self._norm2(h + self._pwff(h))
+
+        return h
+
+    def set_swish(self, memory_efficient=True):
+        """Sets swish function as memory efficient (for training) or standard
+           (for export).
+
+        Args:
+            memory_efficient (bool): Whether to use memory-efficient version of
+            swish.
+        """
+
+        self._pwff.set_swish(memory_efficient)
+
+
+class SequenceToImageStart(nn.Module):
+    def __init__(self, cfg):
+        super().__init__()
+
+        self.cfg = cfg
+
+        self.ch_groups = self.cfg.output_ch // self.cfg.ch_per_head
+        n_heads = self.cfg.output_res**2 * self.ch_groups
+        output_size = self.cfg.output_res**2 * self.ch_groups
+
+        self._avg_to_key = nn.Linear(self.cfg.input_size, self.cfg.key_size)
+        self._attn = MultiHeadedSelfAttention(self.cfg.input_size,
+                                              self.cfg.key_size,
+                                              output_size,
+                                              n_heads,
+                                              input_reduce_key=True)
+
+    def forward(self, x, splits, y=None):
+        # Uses average as reduce_key and produces NxCxHxW tensor
+        avgs = []
+        for (prev, after) in splits:
+            count = after - prev
+            avgs.append(x[prev:after].mean(0, keepdim=True).expand(count, -1))
+        avgs = torch.cat(avgs, dim=0)
+
+        key = self._avg_to_key(avgs)
+        attention_output = self._attn(x, splits, key)
+
+        # return as NxCxHxW
+        return attention_output.reshape(attention_output.size(0),
+                                        self.cfg.output_ch,
+                                        self.cfg.output_res,
+                                        self.cfg.output_res)
+
+
+class ImageToSequence(nn.Module):
+    def __init__(self, cfg):
+        self.cfg = cfg
+
+        # roughly, this layer is 2 element multi headed attention
+        self._pool = nn.AdaptiveMaxPool2d(1)
+        self._proj_k = nn.Linear(self.cfg.image_ch, self.cfg.key_size)
+        self._proj_v = nn.Linear(self.cfg.image_ch, self.seq_size)
+        self._proj_q = nn.Linear(self.seq_size, self.cfg.key_size)
+
+    # x is seq (BS x D), y is image type data (B x C x H x W)
+    def forward(self, x, y):
+        # (B x C x H x W) -pool-> (B x C)
+        pooled = self._pool(y).view(y.size(0), -1)
+
+        # (B x C) -proj-> (B x D)
+        k = self._proj_k(pooled)
+        v = self._proj_v(pooled)
+
+        # (BS x D) -proj-> (BS x D)
+        q = self._proj_q(x)
+
+        # (BS x D) -split-> (BS x H x W)
+        q, k, v = (split_last(x, (self.cfg.n_heads, -1)) for x in [q, k, v])
+
+        scores = (q[:, :, None] @ k[:, :, :, None]).squeeze(-1)
+        scores = torch.sigmoid(scores)
+
+        # would probably also be reasonable to do just x + v * scores
+        return x * (1 - scores) + v * scores
+
+
+class SequenceToImage(nn.Module):
+    def __init__(self, cfg):
+        self.cfg = cfg
+
+        self._proj_k = nn.Conv2d(self.cfg.image_ch,
+                                 self.cfg.key_size,
+                                 padding=1)
+        self._attn = MultiHeadedSelfAttention(self.cfg.seq_size,
+                                              self.cfg.key_size,
+                                              self.cfg.output_ch,
+                                              self.cfg.n_heads,
+                                              input_reduce_key=True)
+
+    # x is seq (BS x D), y is image type data (B x C x H x W)
+    def forward(self, x, splits, y):
+        k = self._proj_k(y)
+
+        batch_size = y.size(0)
+        height = y.size(2)
+        width = y.size(3)
+        image_size = height * width
+
+        # to NHWC
+        k = k.permute(0, 2, 3, 1)
+
+        k = k.view(batch_size, image_size, -1)
+
+        # attention is applied elementwise to "pixels"
+        added_values = self._attn(x, splits, k)
+        added_values = added_values.permute(0, 2, 1)
+        added_values = added_values.view(batch_size, -1, image_size)
+
+        return torch.cat((y, added_values), dim=1)
 
 
 class MBConvGBlock(nn.Module):
@@ -281,153 +572,3 @@ class Attention(nn.Module):
             torch.bmm(g, beta.transpose(1, 2)).view(-1, self.ch // 2,
                                                     x.shape[2], x.shape[3]))
         return self.gamma * o + x
-
-
-# This probably needs a bunch of tunning
-class FeatureExtractor(nn.Module):
-    def __init__(self, block_args, global_params):
-        super().__init__()
-        self._block_args = block_args
-
-        self._swish = MemoryEfficientSwish()
-
-        if self._block_args.has_channel_input:
-            self._avg_pool = nn.AdaptiveMaxPool2d(1)
-            self._ch_to_mix = nn.Linear(self._block_args.input_ch,
-                                        self._block_args.mix_ch,
-                                        bias=False)
-        self._input_to_mix = nn.Linear(global_params.input_expand_size,
-                                       self._block_args.mix_ch,
-                                       bias=True)
-        self._embedding = nn.Linear(self._block_args.mix_ch,
-                                    self._block_args.initial_embedding_size,
-                                    bias=True)
-        self._reduce_stats_feature = nn.Linear(
-            1 + 2 * (self._block_args.initial_embedding_size +
-                     self._block_args.initial_embedding_size**2),
-            self._block_args.reduced_stats_size,
-            bias=True)
-        self._to_embedding_info = nn.Linear(
-            self._block_args.reduced_stats_size +
-            self._block_args.initial_embedding_size,
-            self._block_args.embedding_info_size,
-            bias=True)
-        self._to_linear_sum = nn.Linear(self._block_args.embedding_info_size +
-                                        self._block_args.mix_ch,
-                                        self._block_args.linear_sum_size,
-                                        bias=True)
-        self._to_linear_multipliers = nn.Linear(
-            self._block_args.embedding_info_size,
-            self._block_args.linear_sum_size,
-            bias=True)
-        self._to_linear_out = nn.Linear(self._block_args.linear_sum_size,
-                                        self._block_args.linear_output_size,
-                                        bias=True)
-
-    def set_swish(self, memory_efficient=True):
-        """Sets swish function as memory efficient (for training) or standard (for export).
-
-        Args:
-            memory_efficient (bool): Whether to use memory-efficient version of swish.
-        """
-        self._swish = MemoryEfficientSwish() if memory_efficient else Swish()
-
-    def forward(self, inputs, splits, channels=None):
-
-        if inputs.nelement() == 0:
-            return self._to_linear_out.bias.view(
-                1, self._block_args.linear_output_size)
-
-        x = self._input_to_mix(inputs)
-
-        if self._block_args.has_channel_input:
-            avg_ch = self._avg_pool(channels).view(channels.size(0), -1)
-            mix_ch = self._ch_to_mix(avg_ch)
-            mix_ch_resized = torch.cat([
-                mix_ch[i].view(-1).expand(after - prev, -1)
-                for i, (prev, after) in enumerate(splits)
-            ])
-
-            x = mix_ch_resized + x
-
-        # TODO: consider adding bn (somewhat strange/not sure it would do what
-        # I want)
-        x = self._swish(x)
-
-        # TODO: for triangles we will need to ~greatly~ reduce this
-        embedding = self._swish(self._embedding(x))
-
-        stats = []
-
-        all_products = embedding[:, None, :] * embedding[:, :, None]
-
-        # may not be peak efficiency...
-        for i, (prev, after) in enumerate(splits):
-            count = after - prev
-            if count == 0:
-                continue
-
-            count_t = torch.tensor([count],
-                                   dtype=inputs.dtype,
-                                   device=inputs.device).view(1, 1)
-            b_embed = embedding[prev:after]
-
-            # roughly expectation
-            b_avgs = torch.mean(b_embed, dim=0, keepdim=True)
-
-            # all combinations of products (for covariance matrix)
-            b_all_products = all_products[prev:after].view(count, -1)
-
-            # roughly covariance (as vector)
-            b_all_products_avgs = torch.mean(b_all_products,
-                                             dim=0,
-                                             keepdim=True)
-
-            stats_feature = torch.cat(
-                (count_t, b_avgs, b_all_products_avgs, b_avgs * count_t,
-                 b_all_products_avgs * count_t),
-                dim=1)
-
-            stats_feature_reduced = self._swish(
-                self._reduce_stats_feature(stats_feature))
-
-            stats.append(stats_feature_reduced.expand(count, -1))
-
-        stats = torch.cat(stats, dim=0)
-
-        # final_embedding = self._embed_with_stats(
-        #     torch.cat((stats, embedding), dim=1))
-
-        embedding_info = self._swish(
-            self._to_embedding_info(torch.cat((stats, embedding), dim=1)))
-
-        # linear block
-        x = torch.cat((embedding_info, x), dim=1)
-
-        linear_sum = self._swish(self._to_linear_sum(x))
-        linear_multipliers = torch.sigmoid(
-            self._to_linear_multipliers(embedding_info))
-
-        linear_sum = linear_sum * linear_multipliers
-
-        linear_totals = []
-
-        for i, (prev, after) in enumerate(splits):
-            count = after - prev
-
-            if count == 0:
-                linear_totals.append(
-                    torch.zeros((1, self._block_args.linear_sum_size),
-                                dtype=inputs.dtype,
-                                device=inputs.device))
-            else:
-                linear_totals.append(
-                    torch.mean(linear_sum[prev:after], dim=0, keepdim=True))
-
-        linear_totals = torch.cat(linear_totals, dim=0)
-
-        linear_out = self._to_linear_out(linear_totals)
-
-        # TODO: conv block
-
-        return linear_out

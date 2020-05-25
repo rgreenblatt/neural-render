@@ -2,6 +2,7 @@ import os
 import argparse
 import sys
 import datetime
+import math
 
 import torch
 from torch.utils.tensorboard import SummaryWriter
@@ -9,9 +10,9 @@ import numpy as np
 from torchvision.utils import make_grid
 
 from model import Net
-from load_data import load_dataset, linear_to_srgb
+from load_data import load_dataset
 from arch import net_params
-from utils import mkdirs, PiecewiseLinear
+from utils import mkdirs, PiecewiseLinear, linear_to_srgb
 
 
 def main():
@@ -25,6 +26,7 @@ def main():
     parser.add_argument('--save-model-every', type=int, default=5)
     parser.add_argument('--name', required=True)
     parser.add_argument('--norm-style', default='bn')
+    parser.add_argument('--max-ch', type=int, default=512)
     args = parser.parse_args()
 
     torch.backends.cudnn.benchmark = True
@@ -52,6 +54,7 @@ def main():
     blocks_args, global_params = net_params(input_size=input_size,
                                             input_expand_size=4 * input_size,
                                             output_width=img_width,
+                                            max_ch=args.max_ch,
                                             norm_style=args.norm_style)
 
     net = Net(blocks_args, global_params).to(device)
@@ -112,8 +115,8 @@ def main():
 
     writer = SummaryWriter(log_dir=tensorboard_output)
 
-    train_batches_to_save = args.train_images_to_save // batch_size
-    test_batches_to_save = args.test_images_to_save // batch_size
+    train_batches_to_save = math.ceil(args.train_images_to_save / batch_size)
+    test_batches_to_save = math.ceil(args.test_images_to_save / batch_size)
 
     for epoch in range(epoches):
         net.train()
@@ -188,14 +191,19 @@ def main():
 
         print("{}, epoch: {}, train loss: {}, test loss: {}, lr: {}".format(
             datetime.datetime.now(), epoch, train_loss, test_loss, lr))
-        writer.add_image("images/train/actual", make_grid(actual_images_train),
-                         epoch)
-        writer.add_image("images/train/output", make_grid(output_images_train),
-                         epoch)
-        writer.add_image("images/test/actual", make_grid(actual_images_test),
-                         epoch)
-        writer.add_image("images/test/output", make_grid(output_images_test),
-                         epoch)
+
+        if actual_images_train is not None:
+            writer.add_image("images/train/actual",
+                             make_grid(actual_images_train), epoch)
+            writer.add_image("images/train/output",
+                             make_grid(output_images_train), epoch)
+
+        if actual_images_test is not None:
+            writer.add_image("images/test/actual",
+                             make_grid(actual_images_test), epoch)
+            writer.add_image("images/test/output",
+                             make_grid(output_images_test), epoch)
+
         writer.add_scalar("loss/train", train_loss, epoch)
         writer.add_scalar("loss/test", test_loss, epoch)
         writer.add_scalar("lr", lr, epoch)

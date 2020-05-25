@@ -84,3 +84,21 @@ def get_position_ch(min_width, max_width, dtype, device):
             dim=0).view(1, 2, width, width)
 
     return out
+
+
+# Note: expects tensor type in standard format (N x C x H x W)
+def linear_to_srgb(img):
+    return torch.where(img <= 0.0031308, 12.92 * img,
+                       1.055 * torch.pow(img, 1 / 2.4) - 0.055)
+
+
+# Note: expects numpy format image (H x W x C)
+# expects square format and clean multiple
+def resize(img, output_size):
+    input_size = img.shape[0]
+    bin_size = input_size // output_size
+
+    assert bin_size * output_size == input_size, "multiple must be exact"
+
+    return img.reshape(
+        (output_size, bin_size, output_size, bin_size, 3)).mean(3).mean(1)

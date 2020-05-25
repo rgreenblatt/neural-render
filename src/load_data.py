@@ -4,42 +4,15 @@ import pickle
 import torchvision
 import torch
 import numpy as np
-import OpenEXR as exr
-from Imath import PixelType
+import imageio
+from utils import resize
+
 
 def load_exr(path):
-    file = exr.InputFile(path)
+    return imageio.imread(path)[:,:,:3]
 
-    header = file.header()
-    dw = header['dataWindow']
-    isize = (dw.max.y - dw.min.y + 1, dw.max.x - dw.min.x + 1)
-
-    channels = []
-    for c in ["R", "G", "B"]:
-        channel = file.channel(c, PixelType(PixelType.FLOAT))
-        channel = np.fromstring(channel, dtype=np.float32)
-        channel = np.reshape(channel, isize)
-
-        channels.append(channel)
-
-    return np.stack(channels, axis=2)
-
-# Note: expects tensor type in standard format (N x C x H x W)
-def linear_to_srgb(img):
-    return torch.where(img <= 0.0031308, 12.92 * img,
-                       1.055 * torch.pow(img, 1 / 2.4) - 0.055)
-
-# Note: expects numpy format image (H x W x C)
-# expects square format and clean multiple
-def resize(img, output_size):
-    input_size = img.shape[0]
-    bin_size = input_size // output_size
-
-    assert bin_size * output_size == input_size, "multiple must be exact"
-
-    return img.reshape(
-        (output_size, bin_size, output_size, bin_size, 3)).mean(3).mean(1)
-
+def write_exr(path, img):
+    return imageio.imwrite(path, img)
 
 class RenderedDataset(torch.utils.data.Dataset):
     def __init__(self, p_path, img_path, resolution, transform=None):
@@ -51,8 +24,7 @@ class RenderedDataset(torch.utils.data.Dataset):
 
     def __getitem__(self, index):
         image = load_exr(
-            os.path.join(self.img_path,
-                         "img_{}.exr".format(index)))
+            os.path.join(self.img_path, "img_{}.exr".format(index)))
 
         assert image.shape[0] == image.shape[1], "must be square"
 
@@ -119,6 +91,7 @@ def variable_length_collate_fn(batch):
     image_stack = torch.stack([b["image"] for b in batch])
 
     return splits, {"inp": inp_cat, "image": image_stack}
+
 
 def load_dataset(p_path,
                  img_path,
