@@ -36,14 +36,14 @@ def render_image(path):
     remove_printing(lambda: bpy.ops.render.render(write_still=True))
 
 
-def random_location(self):
+def random_location():
     base_loc = np.array([0.0, 15.0, 0.0])
     translate = np.random.uniform(low=-12.0, high=10.0, size=[3])
 
     return base_loc + translate
 
 
-def random_rotation(self):
+def random_rotation():
     values = np.random.uniform(size=[3])
     u = values[0]
     v = values[1]
@@ -57,14 +57,14 @@ def random_rotation(self):
     ])
 
 
-def random_scale(self, location):
+def random_scale(location):
     base_scale = np.exp(np.random.normal(loc=-3.0)) * location[1]
     components_scale = np.random.uniform(low=0.5, high=1.5, size=[3])
 
     return base_scale * components_scale
 
 
-def random_material(self):
+def random_material():
     # TODO: consider tuning distributions
 
     color = np.random.uniform(size=3)
@@ -92,12 +92,16 @@ def random_material(self):
 def random_scene():
     num_objects = np.random.randint(1, 100)
 
-    location = random_location()
-    rotation = random_rotation()
-    scale = random_scale(location)
-    mat_params = random_material()
+    spheres = []
+    for i in range(num_objects):
+        location = random_location()
+        rotation = random_rotation()
+        scale = random_scale(location)
+        mat_params = random_material()
 
-    return np.concatenate((location, rotation, scale, mat_params))
+        spheres.append(np.concatenate((location, rotation, scale, mat_params)))
+
+    return np.array(spheres)
 
 
 class DisplayBlenderScene():
@@ -176,6 +180,7 @@ class DisplayBlenderScene():
 
         for mat in self.materials:
             bpy.data.materials.remove(mat)
+
 
 def basic_setup():
     camera = bpy.data.objects["Camera"]
