@@ -22,3 +22,4 @@ RUN curl -fsSL -v -o ~/miniconda.sh -O  https://repo.anaconda.com/miniconda/Mini
 
 RUN /opt/conda/bin/conda install -y pytorch torchvision cudatoolkit=10.1 cudnn pip
 RUN pip install imageio
+RUN imageio_download_bin freeimage
