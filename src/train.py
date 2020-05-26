@@ -82,7 +82,7 @@ def main():
     input_size = 32 # 20, then 32 after process_input
 
     blocks_args, global_args = net_params(input_size=input_size,
-                                          seq_size=256,
+                                          seq_size=512,
                                           output_width=img_width,
                                           max_ch=args.max_ch,
                                           norm_style=args.norm_style,
