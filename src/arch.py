@@ -61,6 +61,7 @@ _BlockArgsParams = collections.namedtuple('BlockArgsParams', [
     'image_n_heads',
     'norm_style',
     'round_by',
+    'show_info'
 ])
 
 
@@ -84,11 +85,12 @@ class BlockArgs(_BlockArgsParams):
         self.output_ch_conv = (round_valid(self.output_ch_this_block) -
                                round(self.attn_output_ch))
 
-        print("block num:", self.block_num)
-        print("input conv at n:", self.input_ch_conv)
-        print("output conv at n:", self.output_ch_conv)
-        print("output overall at n:", self.output_ch_this_block)
-        print("output at end of blocks:", self.output_ch)
+        if self.show_info:
+            print("block num:", self.block_num)
+            print("input conv at n:", self.input_ch_conv)
+            print("output conv at n:", self.output_ch_conv)
+            print("output overall at n:", self.output_ch_this_block)
+            print("output at end of blocks:", self.output_ch)
 
         self.block_num += 1
 
@@ -132,7 +134,8 @@ def net_params(input_size,
                start_ch_per_head=16,
                max_ch=512,
                chan_reduce_multiplier=2,
-               norm_style='bn'):
+               norm_style='bn',
+               show_info=True):
     """Create BlockArgs and GlobalParams
 
     Args:
@@ -175,8 +178,9 @@ def net_params(input_size,
         output_ch = round(ch_after)
 
 
-        print("Layer {} input ch: {}, output ch: {}, attn ch: {}".format(
-            i, input_ch, output_ch, attn_ch))
+        if show_info:
+            print("Layer {} input ch: {}, output ch: {}, attn ch: {}".format(
+                i, input_ch, output_ch, attn_ch))
 
         expand_ratio = 6
 
@@ -202,6 +206,7 @@ def net_params(input_size,
                 image_n_heads=2,
                 norm_style=norm_style,
                 round_by=16 if norm_style.startswith('gn') else 1,
+                show_info=show_info,
             ))
 
         ch_before = ch_after

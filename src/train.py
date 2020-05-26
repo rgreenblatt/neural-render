@@ -60,7 +60,8 @@ def main():
                                           seq_size=128,
                                           output_width=img_width,
                                           max_ch=args.max_ch,
-                                          norm_style=args.norm_style)
+                                          norm_style=args.norm_style,
+                                          show_info=not hide_model_info)
 
     net = Net(blocks_args, global_args).to(device)
 
