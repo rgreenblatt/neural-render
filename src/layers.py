@@ -306,9 +306,9 @@ class SeqToImageStart(nn.Module):
         n_heads = self.cfg.start_width**2 * self.ch_groups
         output_size = self.cfg.start_width**2 * self.cfg.start_ch
 
-        self._avg_to_key = nn.Linear(self.cfg.seq_size, self.cfg.key_size)
+        self._avg_to_key = nn.Linear(self.cfg.seq_size, n_heads * 4)
         self._attn = MultiHeadedSelfAttention(self.cfg.seq_size,
-                                              self.cfg.key_size,
+                                              n_heads * 4,
                                               output_size,
                                               n_heads,
                                               query_is_input=True)
