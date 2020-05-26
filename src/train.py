@@ -29,6 +29,7 @@ def main():
     parser.add_argument('--max-ch', type=int, default=256)
     parser.add_argument('--epoches', type=int, default=100)
     parser.add_argument('--profile', action='store_true')
+    parser.add_argument('--profile-len', type=int, default=4)
     parser.add_argument('--hide-model-info', action='store_true')
     args = parser.parse_args()
 
