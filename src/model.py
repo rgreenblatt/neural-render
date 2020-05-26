@@ -53,10 +53,10 @@ class Net(nn.Module):
                     MBConvGBlock(block_args.mbconv_args()))
                 # self._image_to_seq_blocks.append(
                 #     ImageToSeq(block_args.image_to_seq_args()))
-                # self._seq_blocks.append(
-                #     Transformer(block_args.transformer_args()))
-                # self._seq_to_image_blocks.append(
-                #     SeqToImage(block_args.seq_to_image_args()))
+                self._seq_blocks.append(
+                    Transformer(block_args.transformer_args()))
+                self._seq_to_image_blocks.append(
+                    SeqToImage(block_args.seq_to_image_args()))
 
             if i == self._global_args.nonlocal_index - 1:
                 self._attention_index = len(self._image_blocks) - 1
@@ -82,13 +82,13 @@ class Net(nn.Module):
         """
         self._swish = MemoryEfficientSwish() if memory_efficient else Swish()
 
-        # self._base_transformer.set_swish(memory_efficient)
+        self._base_transformer.set_swish(memory_efficient)
 
         for block in self._image_blocks:
             block.set_swish(memory_efficient)
 
-        # for block in self._seq_blocks:
-        #     block.set_swish(memory_efficient)
+        for block in self._seq_blocks:
+            block.set_swish(memory_efficient)
 
     def forward(self, inputs, splits):
         """
@@ -104,22 +104,22 @@ class Net(nn.Module):
         # consider layernorm here...
         # inputs_expanded = self._swish(self._input_expand(inputs))
 
-        # seq = self._base_transformer(inputs_expanded, splits)
-        # image = self._seq_to_image_start(seq, splits)
+        seq = self._base_transformer(inputs_expanded, splits)
+        image = self._seq_to_image_start(seq, splits)
 
-        image = self._input_DEBUG(inputs).view(inputs.size(0),
-                                               self._global_args.start_ch,
-                                               self._global_args.start_width,
-                                               self._global_args.start_width)
+        # image = self._input_DEBUG(inputs).view(inputs.size(0),
+        #                                        self._global_args.start_ch,
+        #                                        self._global_args.start_width,
+        #                                        self._global_args.start_width)
 
         position_ch = get_position_ch(self._global_args.start_width,
                                       self._global_args.end_width,
                                       inputs.dtype, inputs.device)
 
-        all_blocks = (self._image_blocks, )
+        all_blocks = (self._image_blocks, self._seq_blocks, self._seq_to_image_blocks)
 
         for i, blocks in enumerate(zip(*all_blocks)):
-            (image_b, ) = blocks
+            (image_b, seq_b, seq_to_image_b) = blocks
             image = image_b(image, position_ch)
             # seq = image_to_seq_b(seq, splits, image)
             # seq = seq_b(seq, splits)
