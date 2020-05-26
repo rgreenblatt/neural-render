@@ -47,16 +47,16 @@ class Net(nn.Module):
 
                 self._image_blocks.append(
                     MBConvGBlock(block_args.mbconv_args()))
-                self._image_to_seq_blocks.append(
-                    ImageToSeq(block_args.image_to_seq_args()))
-                self._seq_blocks.append(
-                    Transformer(block_args.transformer_args()))
-                self._seq_to_image_blocks.append(
-                    SeqToImage(block_args.seq_to_image_args()))
+                # self._image_to_seq_blocks.append(
+                #     ImageToSeq(block_args.image_to_seq_args()))
+                # self._seq_blocks.append(
+                #     Transformer(block_args.transformer_args()))
+                # self._seq_to_image_blocks.append(
+                #     SeqToImage(block_args.seq_to_image_args()))
 
-            if i == self._global_args.nonlocal_index - 1:
-                self._attention_index = len(self._image_blocks) - 1
-                self._attention = Attention(block_args.output_ch)
+            # if i == self._global_args.nonlocal_index - 1:
+            #     self._attention_index = len(self._image_blocks) - 1
+            #     self._attention = Attention(block_args.output_ch)
 
         self._swish = MemoryEfficientSwish()
 
@@ -107,15 +107,17 @@ class Net(nn.Module):
                                       self._global_args.end_width,
                                       inputs.dtype, inputs.device)
 
-        all_blocks = (self._image_blocks, self._image_to_seq_blocks,
-                      self._seq_blocks, self._seq_to_image_blocks)
+        # all_blocks = (self._image_blocks, self._image_to_seq_blocks,
+        #               self._seq_blocks, self._seq_to_image_blocks)
+        all_blocks = (self._image_blocks,)
 
         for i, blocks in enumerate(zip(*all_blocks)):
-            image_b, image_to_seq_b, seq_b, seq_to_image_b = blocks
+            # image_b, image_to_seq_b, seq_b, seq_to_image_b = blocks
+            (image_b,) = blocks
             image = image_b(image, position_ch)
-            seq = image_to_seq_b(seq, splits, image)
-            seq = seq_b(seq, splits)
-            image = seq_to_image_b(seq, splits, image)
+            # seq = image_to_seq_b(seq, splits, image)
+            # seq = seq_b(seq, splits)
+            # image = seq_to_image_b(seq, splits, image)
 
         image = self.output_bn(image)
         image = self._swish(image)
