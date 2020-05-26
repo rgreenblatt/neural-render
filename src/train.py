@@ -27,7 +27,7 @@ def main():
     parser.add_argument('--name', required=True)
     parser.add_argument('--norm-style', default='bn')
     parser.add_argument('--max-ch', type=int, default=256)
-    parser.add_argument('--epochs', type=int, default=100)
+    parser.add_argument('--epoches', type=int, default=100)
     parser.add_argument('--profile', action='store_true')
     args = parser.parse_args()
 
