@@ -37,8 +37,10 @@ def render_image(path):
 
 
 def random_location():
-    base_loc = np.array([0.0, 15.0, 0.0])
-    translate = np.random.uniform(low=-12.0, high=10.0, size=[3])
+    # base_loc = np.array([0.0, 15.0, 0.0])
+    # translate = np.random.uniform(low=-12.0, high=10.0, size=[3])
+    base_loc = np.array([0.0, 0.0, 0.0])
+    translate = np.random.uniform(low=-1.0, high=1.0, size=[3])
 
     return base_loc + translate
 
@@ -91,7 +93,7 @@ def random_material():
 
 def random_scene():
     # num_objects = np.random.randint(1, 100)
-    num_objects = 2
+    num_objects = 5
 
     spheres = []
     for i in range(num_objects):
@@ -123,11 +125,12 @@ class DisplayBlenderScene():
     def _display_sphere(self, sphere_params, i):
         bpy.ops.object.select_all(action='DESELECT')
 
-        bpy.ops.mesh.primitive_uv_sphere_add()
+        # bpy.ops.mesh.primitive_uv_sphere_add()
+        bpy.ops.mesh.primitive_cube_add()
 
         # sphere is selected
         bpy.ops.object.editmode_toggle()
-        bpy.ops.mesh.faces_shade_smooth()
+        # bpy.ops.mesh.faces_shade_smooth()
         bpy.ops.object.editmode_toggle()
 
         sphere = bpy.context.selected_objects[0]
@@ -146,10 +149,10 @@ class DisplayBlenderScene():
 
         sphere.data.materials.append(mat)
 
-        mat.use_nodes = True
-        mat.node_tree.nodes.new("ShaderNodeBsdfPrincipled")
-        self._set_material(sphere_params[10:],
-                           mat.node_tree.nodes["Principled BSDF"])
+        # mat.use_nodes = True
+        # mat.node_tree.nodes.new("ShaderNodeBsdfPrincipled")
+        # self._set_material(sphere_params[10:],
+        #                    mat.node_tree.nodes["Principled BSDF"])
 
         return sphere, mat
 
@@ -188,16 +191,16 @@ class DisplayBlenderScene():
 
 
 def basic_setup():
-    camera = bpy.data.objects["Camera"]
-    camera.location = mathutils.Vector((0.0, 0.0, 0.0))
-    camera.scale = mathutils.Vector((1.0, 1.0, 1.0))
-    camera.rotation_euler[0] = math.pi / 2
-    camera.rotation_euler[1] = 0.0
-    camera.rotation_euler[2] = 0.0
+    # camera = bpy.data.objects["Camera"]
+    # camera.location = mathutils.Vector((0.0, 0.0, 0.0))
+    # camera.scale = mathutils.Vector((1.0, 1.0, 1.0))
+    # camera.rotation_euler[0] = math.pi / 2
+    # camera.rotation_euler[1] = 0.0
+    # camera.rotation_euler[2] = 0.0
 
     # make background dark
-    bpy.data.worlds["World"].node_tree.nodes["Background"].inputs[
-        0].default_value = (0, 0, 0, 1)
+    # bpy.data.worlds["World"].node_tree.nodes["Background"].inputs[
+    #     0].default_value = (0, 0, 0, 1)
 
     # sometimes required to "refresh" devices (doesn't need to be printed)
     print("devices are:",
@@ -247,7 +250,7 @@ def main():
         bpy.ops.object.select_all(action='DESELECT')
 
         bpy.data.objects['Cube'].select_set(True)
-        bpy.data.objects['Light'].select_set(True)
+        # bpy.data.objects['Light'].select_set(True)
 
         remove_printing(lambda: bpy.ops.object.delete())
 

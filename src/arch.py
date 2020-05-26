@@ -26,7 +26,7 @@ def subset_named_tuple(to_tup, from_tup, **kwargs):
 _GlobalArgParams = collections.namedtuple('GlobalArgsParams', [
     'start_width', 'end_width', 'input_size', 'seq_size',
     'base_transformer_n_heads', 'base_transformer_n_layers', 'nonlocal_index',
-    'start_ch', 'ch_per_head'
+    'start_ch', 'ch_per_head', 'norm_style'
 ])
 
 
@@ -60,6 +60,7 @@ _BlockArgsParams = collections.namedtuple('BlockArgsParams', [
     'image_key_size',
     'image_n_heads',
     'norm_style',
+    'round_by',
 ])
 
 
@@ -76,9 +77,12 @@ class BlockArgs(_BlockArgsParams):
         self.input_ch_this_block = self.output_ch_this_block
         self.output_ch_this_block = (self.input_ch_this_block +
                                      self.ch_per_block)
-        self.input_ch_conv = round(self.input_ch_this_block)
-        self.output_ch_conv = round(self.output_ch_this_block -
-                                    self.attn_output_ch)
+        def round_valid(value):
+            return math.ceil(round(value) / self.round_by) * self.round_by
+
+        self.input_ch_conv = round_valid(self.input_ch_this_block)
+        self.output_ch_conv = (round_valid(self.output_ch_this_block) -
+                               round(self.attn_output_ch))
 
         print("block num:", self.block_num)
         print("input conv at n:", self.input_ch_conv)
@@ -197,6 +201,7 @@ def net_params(input_size,
                 image_key_size=round(attn_ch),
                 image_n_heads=2,
                 norm_style=norm_style,
+                round_by=16 if norm_style.startswith('gn') else 1,
             ))
 
         ch_before = ch_after
@@ -211,6 +216,7 @@ def net_params(input_size,
         nonlocal_index=nonlocal_index,
         start_ch=round(start_ch),
         ch_per_head=start_ch_per_head,
+        norm_style=norm_style,
     )
 
     return blocks_args, global_args

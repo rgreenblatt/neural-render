@@ -2,7 +2,7 @@ import torch
 from torch import nn
 
 from layers import (MBConvGBlock, Attention, Transformer, SeqToImageStart,
-                    SeqToImage, ImageToSeq)
+                    SeqToImage, ImageToSeq, configurable_norm)
 from utils import Swish, MemoryEfficientSwish, get_position_ch
 
 
@@ -60,7 +60,10 @@ class Net(nn.Module):
 
         self._swish = MemoryEfficientSwish()
 
-        self.output_bn = nn.BatchNorm2d(last_ch)
+        self.output_bn = configurable_norm(
+            last_ch,
+            input_gain_bias=False,
+            norm_style=self._global_args.norm_style)
         self.output_conv = nn.Conv2d(last_ch,
                                      out_channels,
                                      kernel_size=3,
@@ -117,6 +120,6 @@ class Net(nn.Module):
         image = self.output_bn(image)
         image = self._swish(image)
         image = self.output_conv(image)
-        image = torch.exp(image)  # seems like a reasonable choice, but...
+        image = torch.sigmoid(image)  # seems like a reasonable choice, but...
 
         return image
