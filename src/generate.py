@@ -93,7 +93,7 @@ def random_material():
 
 def random_scene():
     # num_objects = np.random.randint(1, 100)
-    num_objects = 5
+    num_objects = 2
 
     spheres = []
     for i in range(num_objects):
