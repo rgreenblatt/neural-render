@@ -42,7 +42,7 @@ class RenderedDataset(torch.utils.data.Dataset):
             if image.shape[0] != self.resolution:
                 image = resize(image, self.resolution)
 
-        inp = process_input(self.data[index])
+        inp = self.process_input(self.data[index])
 
         sample = {'image': image, 'inp': inp}
 
