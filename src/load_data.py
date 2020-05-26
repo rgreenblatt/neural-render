@@ -138,6 +138,7 @@ def load_dataset(p_path,
             num_workers=num_workers,
             sampler=sampler,
             collate_fn=variable_length_collate_fn,
+            pin_memory=True,
         )
 
     train_loader = make_loader(train_sampler)
