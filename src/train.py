@@ -27,6 +27,7 @@ def main():
     parser.add_argument('--name', required=True)
     parser.add_argument('--norm-style', default='bn')
     parser.add_argument('--max-ch', type=int, default=256)
+    parser.add_argument('--epochs', type=int, default=100)
     args = parser.parse_args()
 
     torch.backends.cudnn.benchmark = True
@@ -97,7 +98,7 @@ def main():
 
     # TODO: consider switching to l1 (as opposed to l2)
     criterion = torch.nn.MSELoss()
-    epoches = 100
+    epoches = args.epoches
     lr_schedule = PiecewiseLinear([0, 10, 70, 100],
                                   [0.0005, 0.002, 0.0002, 0.00002])
     optimizer = torch.optim.Adam(net.parameters(), lr=0.1, weight_decay=0.0)
