@@ -31,6 +31,9 @@ def main():
     parser.add_argument('--profile', action='store_true')
     parser.add_argument('--profile-len', type=int, default=4)
     parser.add_argument('--hide-model-info', action='store_true')
+    parser.add_argument('--fake-data',
+                        action='store_true',
+                        help='disable loading data for profiling')
     args = parser.parse_args()
 
     torch.backends.cudnn.benchmark = True
@@ -53,7 +56,8 @@ def main():
                                valid_prop,
                                args.valid_split_seed,
                                True,
-                               num_workers=8)
+                               num_workers=8,
+                               fake_data=args.fake_data)
 
     input_size = 20
 
@@ -165,7 +169,7 @@ def main():
             optimizer.step()
 
             train_loss += loss.item()
-            if args.profile and i >= 32:
+            if args.profile and i >= args.profile_len:
                 return
 
         train_loss /= len(train)

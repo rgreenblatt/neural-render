@@ -15,21 +15,30 @@ def write_exr(path, img):
     return imageio.imwrite(path, img)
 
 class RenderedDataset(torch.utils.data.Dataset):
-    def __init__(self, p_path, img_path, resolution, transform=None):
+    def __init__(self,
+                 p_path,
+                 img_path,
+                 resolution,
+                 transform=None,
+                 fake_data=False):
         with open(p_path, "rb") as f:
             self.data = pickle.load(f)
         self.img_path = img_path
         self.transform = transform
         self.resolution = resolution
+        self.fake_data = fake_data
 
     def __getitem__(self, index):
-        image = load_exr(
-            os.path.join(self.img_path, "img_{}.exr".format(index)))
+        if self.fake_data:
+            image = np.zeros((self.resolution, self.resolution, 3))
+        else:
+            image = load_exr(
+                os.path.join(self.img_path, "img_{}.exr".format(index)))
 
-        assert image.shape[0] == image.shape[1], "must be square"
+            assert image.shape[0] == image.shape[1], "must be square"
 
-        if image.shape[0] != self.resolution:
-            image = resize(image, self.resolution)
+            if image.shape[0] != self.resolution:
+                image = resize(image, self.resolution)
 
         inp = self.data[index]
 
@@ -100,11 +109,13 @@ def load_dataset(p_path,
                  validation_prop,
                  seed,
                  shuffle_split,
-                 num_workers=0):
+                 num_workers=0,
+                 fake_data=False):
     dataset = RenderedDataset(p_path,
                               img_path,
                               resolution,
-                              transform=ToTensor())
+                              transform=ToTensor(),
+                              fake_data=fake_data)
 
     dataset_size = len(dataset)
 
