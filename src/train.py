@@ -109,7 +109,7 @@ def main():
         print(to_print)
 
     # TODO: consider switching to l1 (as opposed to l2)
-    criterion = torch.nn.L1Loss()
+    criterion = torch.nn.MSELoss()
     epoches = args.epoches
     lr_schedule = PiecewiseLinear([0, 10, 70, 100],
                                   [0.0005, 0.002, 0.0002, 0.00002])
