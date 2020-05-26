@@ -29,6 +29,7 @@ def main():
     parser.add_argument('--max-ch', type=int, default=256)
     parser.add_argument('--epoches', type=int, default=100)
     parser.add_argument('--profile', action='store_true')
+    parser.add_argument('--hide-model-info', action='store_true')
     args = parser.parse_args()
 
     torch.backends.cudnn.benchmark = True
@@ -39,6 +40,8 @@ def main():
     img_path = os.path.join(data_path, 'imgs')
     batch_size = args.batch_size
     valid_prop = 0.2
+
+    hide_model_info = args.hide_model_info or args.profile
 
     img_width = args.resolution
 
@@ -61,7 +64,8 @@ def main():
 
     net = Net(blocks_args, global_args).to(device)
 
-    print(net)
+    if not hide_model_info:
+        print(net)
 
     def recursive_param_print(module, memo=None, value='', name="net"):
         if memo is None:
@@ -92,10 +96,11 @@ def main():
 
         return total, to_print
 
-    print()
+    if not hide_model_info:
+        print()
 
-    total, to_print = recursive_param_print(net)
-    print(to_print)
+        total, to_print = recursive_param_print(net)
+        print(to_print)
 
     # TODO: consider switching to l1 (as opposed to l2)
     criterion = torch.nn.MSELoss()
@@ -104,18 +109,19 @@ def main():
                                   [0.0005, 0.002, 0.0002, 0.00002])
     optimizer = torch.optim.Adam(net.parameters(), lr=0.1, weight_decay=0.0)
 
-    output_dir = "outputs/{}/".format(args.name)
-    tensorboard_output = os.path.join(output_dir, "tensorboard")
-    model_save_output = os.path.join(output_dir, "models")
+    if not args.profile:
+        output_dir = "outputs/{}/".format(args.name)
+        tensorboard_output = os.path.join(output_dir, "tensorboard")
+        model_save_output = os.path.join(output_dir, "models")
 
-    if os.path.exists(output_dir):
-        print("output directory exists, returning")
-        sys.exit(1)
+        if os.path.exists(output_dir):
+            print("output directory exists, returning")
+            sys.exit(1)
 
-    mkdirs(tensorboard_output)
-    mkdirs(model_save_output)
+        mkdirs(tensorboard_output)
+        mkdirs(model_save_output)
 
-    writer = SummaryWriter(log_dir=tensorboard_output)
+        writer = SummaryWriter(log_dir=tensorboard_output)
 
     train_batches_to_save = math.ceil(args.train_images_to_save / batch_size)
     test_batches_to_save = math.ceil(args.test_images_to_save / batch_size)
@@ -160,7 +166,6 @@ def main():
             if args.profile and i >= 32:
                 return
 
-
         train_loss /= len(train)
 
         net.eval()
@@ -197,27 +202,29 @@ def main():
         print("{}, epoch: {}, train loss: {}, test loss: {}, lr: {}".format(
             datetime.datetime.now(), epoch, train_loss, test_loss, lr))
 
-        if actual_images_train is not None:
-            writer.add_image("images/train/actual",
-                             make_grid(actual_images_train), epoch)
-            writer.add_image("images/train/output",
-                             make_grid(output_images_train), epoch)
+        if not args.profile:
+            if actual_images_train is not None:
+                writer.add_image("images/train/actual",
+                                 make_grid(actual_images_train), epoch)
+                writer.add_image("images/train/output",
+                                 make_grid(output_images_train), epoch)
 
-        if actual_images_test is not None:
-            writer.add_image("images/test/actual",
-                             make_grid(actual_images_test), epoch)
-            writer.add_image("images/test/output",
-                             make_grid(output_images_test), epoch)
+            if actual_images_test is not None:
+                writer.add_image("images/test/actual",
+                                 make_grid(actual_images_test), epoch)
+                writer.add_image("images/test/output",
+                                 make_grid(output_images_test), epoch)
 
-        writer.add_scalar("loss/train", train_loss, epoch)
-        writer.add_scalar("loss/test", test_loss, epoch)
-        writer.add_scalar("lr", lr, epoch)
+            writer.add_scalar("loss/train", train_loss, epoch)
+            writer.add_scalar("loss/test", test_loss, epoch)
+            writer.add_scalar("lr", lr, epoch)
 
-        if (epoch + 1) % args.save_model_every == 0:
+        if not args.profile and (epoch + 1) % args.save_model_every == 0:
             torch.save(
                 net, os.path.join(model_save_output, "net_{}.p".format(epoch)))
 
-    torch.save(net, os.path.join(model_save_output, "net_final.p"))
+    if not args.profile:
+        torch.save(net, os.path.join(model_save_output, "net_final.p"))
 
 
 if __name__ == "__main__":
