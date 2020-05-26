@@ -8,7 +8,6 @@ RUN apt-get update && apt-get install -y \
         vim \
         zip \
         build-essential \
-        libopenexr-dev \
         git
 
 ENV PATH /opt/conda/bin:$PATH
@@ -17,10 +16,9 @@ RUN curl -fsSL -v -o ~/miniconda.sh -O  https://repo.anaconda.com/miniconda/Mini
     chmod +x ~/miniconda.sh && \
     ~/miniconda.sh -b -p /opt/conda && \
     rm ~/miniconda.sh && \
-    /opt/conda/bin/conda install -y python=3.7 conda-build pyyaml numpy ipython tensorboard && \
+    /opt/conda/bin/conda install -y python=3.7 conda-build pyyaml numpy ipython tensorboard pip && \
     /opt/conda/bin/conda clean -ya
 
 RUN /opt/conda/bin/conda install -y pytorch torchvision cudatoolkit=10.1 -c pytorch
-RUN /opt/conda/bin/conda install -y pip
 RUN pip install imageio
 RUN imageio_download_bin freeimage
