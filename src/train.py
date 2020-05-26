@@ -28,6 +28,7 @@ def main():
     parser.add_argument('--norm-style', default='bn')
     parser.add_argument('--max-ch', type=int, default=256)
     parser.add_argument('--epochs', type=int, default=100)
+    parser.add_argument('--profile', action='store_true')
     args = parser.parse_args()
 
     torch.backends.cudnn.benchmark = True
@@ -156,6 +157,9 @@ def main():
             optimizer.step()
 
             train_loss += loss.item()
+            if args.profile and i >= 32:
+                return
+
 
         train_loss /= len(train)
 
