@@ -21,24 +21,20 @@ class Net(nn.Module):
 
         out_channels = 3  # rgb
 
-        # self._input_expand = nn.Linear(
-        #     self._global_args.input_size,
-        #     self._global_args.seq_size)
+        self._input_expand = nn.Linear(
+            self._global_args.input_size,
+            self._global_args.seq_size)
 
         # linear block
-        # self._base_transformer = Transformer(
-        #     self._global_args.base_transformer_args())
-        # self._seq_to_image_start = SeqToImageStart(
-        #     self._global_args.seq_to_image_start_args())
+        self._base_transformer = Transformer(
+            self._global_args.base_transformer_args())
+        self._seq_to_image_start = SeqToImageStart(
+            self._global_args.seq_to_image_start_args())
 
         self._image_blocks = nn.ModuleList([])
-        # self._seq_blocks = nn.ModuleList([])
-        # self._seq_to_image_blocks = nn.ModuleList([])
-        # self._image_to_seq_blocks = nn.ModuleList([])
-
-        self._linear_DEBUG = nn.Linear(
-            2 * global_args.input_size,
-            global_args.start_ch * global_args.start_width**2)
+        self._seq_blocks = nn.ModuleList([])
+        self._seq_to_image_blocks = nn.ModuleList([])
+        self._image_to_seq_blocks = nn.ModuleList([])
 
         last_ch = blocks_args[-1].output_ch
 
@@ -51,12 +47,12 @@ class Net(nn.Module):
 
                 self._image_blocks.append(
                     MBConvGBlock(block_args.mbconv_args()))
-                # self._image_to_seq_blocks.append(
-                #     ImageToSeq(block_args.image_to_seq_args()))
-                # self._seq_blocks.append(
-                #     Transformer(block_args.transformer_args()))
-                # self._seq_to_image_blocks.append(
-                #     SeqToImage(block_args.seq_to_image_args()))
+                self._image_to_seq_blocks.append(
+                    ImageToSeq(block_args.image_to_seq_args()))
+                self._seq_blocks.append(
+                    Transformer(block_args.transformer_args()))
+                self._seq_to_image_blocks.append(
+                    SeqToImage(block_args.seq_to_image_args()))
 
             if i == self._global_args.nonlocal_index - 1:
                 self._attention_index = len(self._image_blocks) - 1
@@ -98,35 +94,29 @@ class Net(nn.Module):
         # NOTE!!! We use batch dimension in inputs to store each item,
         # so the number of items can vary.
 
-        image = self._swish(
-            self._linear_DEBUG(inputs.view(len(splits), -1)).view(
-                len(splits), self._global_args.start_ch,
-                self._global_args.start_width, self._global_args.start_width))
-
         # consider layernorm here...
-        # inputs_expanded = self._swish(self._input_expand(inputs))
+        inputs_expanded = self._swish(self._input_expand(inputs))
 
-        # seq = self._base_transformer(inputs_expanded, splits)
-        # image = self._seq_to_image_start(seq, splits)
+        seq = self._base_transformer(inputs_expanded, splits)
+        image = self._seq_to_image_start(seq, splits)
 
         position_ch = get_position_ch(self._global_args.start_width,
                                       self._global_args.end_width,
                                       inputs.dtype, inputs.device)
 
-        # all_blocks = (self._image_blocks, self._image_to_seq_blocks,
-        #               self._seq_blocks, self._seq_to_image_blocks)
+        all_blocks = (self._image_blocks, self._image_to_seq_blocks,
+                      self._seq_blocks, self._seq_to_image_blocks)
 
-        for image_b in self._image_blocks:
-            print("size:", image.size())
-            # image_b, image_to_seq_b, seq_b, seq_to_image_b = blocks
+        for i, blocks in enumerate(zip(*all_blocks)):
+            image_b, image_to_seq_b, seq_b, seq_to_image_b = blocks
             image = image_b(image, position_ch)
-            # seq = image_to_seq_b(seq, splits, image)
-            # seq = seq_b(seq, splits)
-            # image = seq_to_image_b(seq, splits, image)
+            seq = image_to_seq_b(seq, splits, image)
+            seq = seq_b(seq, splits)
+            image = seq_to_image_b(seq, splits, image)
 
         image = self.output_bn(image)
         image = self._swish(image)
         image = self.output_conv(image)
-        image = torch.relu(image)  # seems like a reasonable choice, but...
+        image = torch.exp(image)  # seems like a reasonable choice, but...
 
         return image

@@ -77,9 +77,8 @@ class BlockArgs(_BlockArgsParams):
         self.output_ch_this_block = (self.input_ch_this_block +
                                      self.ch_per_block)
         self.input_ch_conv = round(self.input_ch_this_block)
-        # self.output_ch_conv = round(self.output_ch_this_block -
-        #                             self.attn_output_ch)
-        self.output_ch_conv = round(self.output_ch_this_block)
+        self.output_ch_conv = round(self.output_ch_this_block -
+                                    self.attn_output_ch)
 
         print("block num:", self.block_num)
         print("input conv at n:", self.input_ch_conv)
