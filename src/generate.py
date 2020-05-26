@@ -98,9 +98,8 @@ def random_scene():
     spheres = []
     for i in range(num_objects):
         location = random_location()
-        # rotation = random_rotation()
+        rotation = random_rotation()
         # scale = random_scale(location)
-        rotation = np.array([0.0, 0.0, 0.0, 1.0])
         scale = np.array([1.0, 1.0, 1.0])
         # mat_params = random_material()
         mat_params = np.array(
@@ -265,14 +264,15 @@ def main():
         scene = DisplayBlenderScene(params)
 
         if not in_blender_mode:
-            scenes.append(params)
 
             render_image("{}/imgs/img_{}.exr".format(save_dir, i))
 
             scene.cleanup()
+        scenes.append(params)
 
-    with open("{}/scenes.p".format(save_dir), 'wb') as f:
-        pickle.dump(scenes, f)
+    if not in_blender_mode:
+        with open("{}/scenes.p".format(save_dir), 'wb') as f:
+            pickle.dump(scenes, f)
 
 
 # I would put this in a separate file, but blender python imports are insane
