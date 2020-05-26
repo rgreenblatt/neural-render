@@ -93,11 +93,12 @@ def random_material():
 
 def random_scene():
     # num_objects = np.random.randint(1, 100)
-    num_objects = 2
+    num_objects = 1
 
     spheres = []
     for i in range(num_objects):
-        location = random_location()
+        # location = random_location()
+        location = np.array([0.0, 0.0, 0.0])
         rotation = random_rotation()
         # scale = random_scale(location)
         scale = np.array([1.0, 1.0, 1.0])
