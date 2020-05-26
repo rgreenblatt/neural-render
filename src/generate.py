@@ -90,14 +90,19 @@ def random_material():
 
 
 def random_scene():
-    num_objects = np.random.randint(1, 100)
+    # num_objects = np.random.randint(1, 100)
+    num_objects = 2
 
     spheres = []
     for i in range(num_objects):
         location = random_location()
-        rotation = random_rotation()
-        scale = random_scale(location)
-        mat_params = random_material()
+        # rotation = random_rotation()
+        # scale = random_scale(location)
+        rotation = np.array([0.0, 0.0, 0.0, 1.0])
+        scale = np.array([1.0, 1.0, 1.0])
+        # mat_params = random_material()
+        mat_params = np.array(
+            [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0])
 
         spheres.append(np.concatenate((location, rotation, scale, mat_params)))
 
@@ -199,12 +204,13 @@ def basic_setup():
           bpy.context.preferences.addons['cycles'].preferences.get_devices())
 
     bpy.context.scene.render.image_settings.file_format = 'OPEN_EXR'
-    bpy.context.scene.render.engine = 'CYCLES'
-    bpy.context.scene.cycles.device = 'GPU'
-    bpy.context.preferences.addons[
-        'cycles'].preferences.compute_device_type = "CUDA"
-    bpy.context.scene.render.tile_x = 256
-    bpy.context.scene.render.tile_y = 256
+    bpy.context.scene.render.engine = 'BLENDER_EEVEE'
+    # bpy.context.scene.render.engine = 'CYCLES'
+    # bpy.context.scene.cycles.device = 'GPU'
+    # bpy.context.preferences.addons[
+    #     'cycles'].preferences.compute_device_type = "CUDA"
+    # bpy.context.scene.render.tile_x = 256
+    # bpy.context.scene.render.tile_y = 256
 
 
 def main():
