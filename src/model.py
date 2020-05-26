@@ -122,8 +122,8 @@ class Net(nn.Module):
             (image_b, seq_b, seq_to_image_b) = blocks
             image = image_b(image, position_ch)
             # seq = image_to_seq_b(seq, splits, image)
-            # seq = seq_b(seq, splits)
-            # image = seq_to_image_b(seq, splits, image)
+            seq = seq_b(seq, splits)
+            image = seq_to_image_b(seq, splits, image)
 
         image = self.output_bn(image)
         image = self._swish(image)
