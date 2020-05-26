@@ -21,9 +21,9 @@ class Net(nn.Module):
 
         out_channels = 3  # rgb
 
-        # self._input_expand = nn.Linear(
-        #     self._global_args.input_size,
-        #     self._global_args.seq_size)
+        self._input_expand = nn.Linear(
+            self._global_args.input_size,
+            self._global_args.seq_size)
 
         # linear block
         self._base_transformer = Transformer(
@@ -102,7 +102,7 @@ class Net(nn.Module):
         # so the number of items can vary.
 
         # consider layernorm here...
-        # inputs_expanded = self._swish(self._input_expand(inputs))
+        inputs_expanded = self._swish(self._input_expand(inputs))
 
         seq = self._base_transformer(inputs_expanded, splits)
         image = self._seq_to_image_start(seq, splits)
