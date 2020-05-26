@@ -34,9 +34,10 @@ def main():
     parser.add_argument('--fake-data',
                         action='store_true',
                         help='disable loading data for profiling')
+    parser.add_argument('--no-cudnn-benchmark', action='store_true')
     args = parser.parse_args()
 
-    torch.backends.cudnn.benchmark = True
+    torch.backends.cudnn.benchmark = not args.no_cudnn_benchmark
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
     data_path = 'data/'
