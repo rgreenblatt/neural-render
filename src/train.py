@@ -62,7 +62,7 @@ def main():
     input_size = 20
 
     blocks_args, global_args = net_params(input_size=input_size,
-                                          seq_size=128,
+                                          seq_size=256,
                                           output_width=img_width,
                                           max_ch=args.max_ch,
                                           norm_style=args.norm_style,

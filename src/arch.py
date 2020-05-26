@@ -38,9 +38,7 @@ class GlobalArgs(_GlobalArgParams):
                               hidden_ff_size=self.seq_size * 4)
 
     def seq_to_image_start_args(self):
-        return subset_named_tuple(SeqToImageStartCfg,
-                                  self,
-                                  key_size=self.seq_size)
+        return subset_named_tuple(SeqToImageStartCfg, self)
 
 
 # Parameters for each model block
@@ -57,7 +55,6 @@ _BlockArgsParams = collections.namedtuple('BlockArgsParams', [
     'attn_output_ch',
     'seq_n_heads',
     'transformer_n_layers',
-    'image_key_size',
     'image_n_heads',
     'norm_style',
     'round_by',
@@ -102,9 +99,8 @@ class BlockArgs(_BlockArgsParams):
                                   output_ch=self.output_ch_conv)
 
     def image_to_seq_args(self):
-        # key_size and n_heads could be configured further
+        # n_heads could be configured further
         return ImageToSeqCfg(image_ch=self.output_ch_conv,
-                             key_size=self.seq_size,
                              seq_size=self.seq_size,
                              n_heads=self.seq_n_heads)
 
@@ -117,7 +113,6 @@ class BlockArgs(_BlockArgsParams):
 
     def seq_to_image_args(self):
         return SeqToImageCfg(image_ch=self.output_ch_conv,
-                             key_size=self.image_key_size,
                              seq_size=self.seq_size,
                              output_ch=self.attn_output_ch,
                              n_heads=self.image_n_heads)
@@ -130,8 +125,8 @@ def net_params(input_size,
                depth_coefficient=1.0,
                start_width=4,
                non_local_width=64,
-               start_ch=32,
-               start_ch_per_head=16,
+               start_ch=128,
+               start_ch_per_head=32,
                max_ch=512,
                chan_reduce_multiplier=2,
                norm_style='bn',
@@ -202,7 +197,6 @@ def net_params(input_size,
                 attn_output_ch=round(attn_ch),
                 seq_n_heads=8,
                 transformer_n_layers=2,
-                image_key_size=round(attn_ch),
                 image_n_heads=2,
                 norm_style=norm_style,
                 round_by=16 if norm_style.startswith('gn') else 1,

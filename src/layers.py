@@ -293,7 +293,7 @@ class Transformer(nn.Module):
 
 SeqToImageStartCfg = collections.namedtuple(
     'SeqToImageStartCfg',
-    ['start_ch', 'ch_per_head', 'start_width', 'key_size', 'seq_size'])
+    ['start_ch', 'ch_per_head', 'start_width', 'seq_size'])
 
 
 class SeqToImageStart(nn.Module):
@@ -303,13 +303,13 @@ class SeqToImageStart(nn.Module):
         self.cfg = cfg
 
         self.ch_groups = self.cfg.start_ch // self.cfg.ch_per_head
-        n_heads = self.cfg.start_width**2 * self.ch_groups
+        n_heads = self.ch_groups
         output_size = self.cfg.start_width**2 * self.cfg.start_ch
 
-        self._avg_to_key = nn.Linear(self.cfg.seq_size, self.cfg.key_size)
+        self._avg_to_key = nn.Linear(self.cfg.seq_size, output_size)
         self._attn = MultiHeadedSelfAttention(self.cfg.seq_size,
-                                              self.cfg.key_size,
-                                              output_size,
+                                              self.cfg.start_ch,
+                                              self.cfg.start_ch,
                                               n_heads,
                                               query_is_input=True)
 
@@ -318,11 +318,14 @@ class SeqToImageStart(nn.Module):
         avgs = []
         for (prev, after) in splits:
             count = after - prev
-            avgs.append(x[prev:after].mean(0, keepdim=True)[:, None])
-        avgs = torch.cat(avgs, dim=0)
+            avgs.append(x[prev:after].mean(0))
+        avgs = torch.stack(avgs)
 
-        key = self._avg_to_key(avgs)
+        key = self._avg_to_key(avgs).view(avgs.size(0),
+                                          self.cfg.start_width**2,
+                                          self.cfg.start_ch)
         attention_output = self._attn(x, splits, key)
+        attention_output = attention_output.transpose(1, 2)
 
         # return as NxCxHxW
         return attention_output.reshape(attention_output.size(0),
@@ -473,7 +476,7 @@ class MBConvGBlock(nn.Module):
 
 
 ImageToSeqCfg = collections.namedtuple(
-    'ImageToSeqCfg', ['image_ch', 'key_size', 'seq_size', 'n_heads'])
+    'ImageToSeqCfg', ['image_ch', 'seq_size', 'n_heads'])
 
 
 class ImageToSeq(nn.Module):
@@ -482,14 +485,11 @@ class ImageToSeq(nn.Module):
 
         self.cfg = cfg
 
-        assert (self.cfg.key_size % self.cfg.n_heads) == 0
-        assert (self.cfg.seq_size % self.cfg.n_heads) == 0
-
         # roughly, this layer is 2 element multi headed attention
         self._pool = nn.AdaptiveMaxPool2d(1)
-        self._proj_k = nn.Linear(self.cfg.image_ch, self.cfg.key_size)
+        self._proj_k = nn.Linear(self.cfg.image_ch, self.cfg.seq_size)
         self._proj_v = nn.Linear(self.cfg.image_ch, self.cfg.seq_size)
-        self._proj_q = nn.Linear(self.cfg.seq_size, self.cfg.key_size)
+        self._proj_q = nn.Linear(self.cfg.seq_size, self.cfg.seq_size)
 
     # x is seq (BS x D), y is image type data (B x C x H x W)
     def forward(self, x, splits, y):
@@ -527,7 +527,7 @@ class ImageToSeq(nn.Module):
 
 
 SeqToImageCfg = collections.namedtuple(
-    'SeqToImageCfg', ['image_ch', 'key_size', 'seq_size', 'output_ch', 'n_heads'])
+    'SeqToImageCfg', ['image_ch', 'seq_size', 'output_ch', 'n_heads'])
 
 
 class SeqToImage(nn.Module):
@@ -537,10 +537,10 @@ class SeqToImage(nn.Module):
         self.cfg = cfg
 
         self._proj_k = nn.Conv2d(self.cfg.image_ch,
-                                 self.cfg.key_size,
+                                 self.cfg.output_ch,
                                  kernel_size=1)
         self._attn = MultiHeadedSelfAttention(self.cfg.seq_size,
-                                              self.cfg.key_size,
+                                              self.cfg.output_ch,
                                               self.cfg.output_ch,
                                               self.cfg.n_heads,
                                               query_is_input=True)
