@@ -19,14 +19,16 @@ class RenderedDataset(torch.utils.data.Dataset):
                  p_path,
                  img_path,
                  resolution,
-                 transform=None,
-                 fake_data=False):
+                 transform,
+                 fake_data,
+                 process_input):
         with open(p_path, "rb") as f:
             self.data = pickle.load(f)
         self.img_path = img_path
         self.transform = transform
         self.resolution = resolution
         self.fake_data = fake_data
+        self.process_input = process_input
 
     def __getitem__(self, index):
         if self.fake_data:
@@ -40,7 +42,7 @@ class RenderedDataset(torch.utils.data.Dataset):
             if image.shape[0] != self.resolution:
                 image = resize(image, self.resolution)
 
-        inp = self.data[index]
+        inp = process_input(self.data[index])
 
         sample = {'image': image, 'inp': inp}
 
@@ -110,12 +112,14 @@ def load_dataset(p_path,
                  seed,
                  shuffle_split,
                  num_workers=0,
-                 fake_data=False):
+                 fake_data=False,
+                 process_input=lambda x: x):
     dataset = RenderedDataset(p_path,
                               img_path,
                               resolution,
                               transform=ToTensor(),
-                              fake_data=fake_data)
+                              fake_data=fake_data,
+                              process_input=process_input)
 
     dataset_size = len(dataset)
 

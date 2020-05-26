@@ -8,6 +8,7 @@ import torch
 from torch.utils.tensorboard import SummaryWriter
 import numpy as np
 from torchvision.utils import make_grid
+from scipy.spatial.transform import Rotation as R
 
 from model import Net
 from load_data import load_dataset
@@ -49,6 +50,24 @@ def main():
 
     img_width = args.resolution
 
+    # function for processing the input (shouldn't have trainable params)
+    # takes np array
+    def process_input(inp):
+        # add many angle representations (not sure which is best yet)
+
+        # switch from (W, X, Y, Z) to (X, Y, Z, W)
+        quat_arr = np.concatenate((inp[:, 4:7], inp[:, 3:4]), axis=1)
+        rot = R.from_quat(quat_arr)
+        mat_arr = rot.as_matrix()
+        mat_arr.resize((inp.shape[0], 9))
+        rot_vec_arr = rot.as_rotvec()
+
+        return np.concatenate(
+            (inp, mat_arr, rot_vec_arr), axis=1)
+
+
+
+
     train, test = load_dataset(p_path,
                                img_path,
                                img_width,
@@ -57,9 +76,10 @@ def main():
                                args.valid_split_seed,
                                True,
                                num_workers=8,
-                               fake_data=args.fake_data)
+                               fake_data=args.fake_data,
+                               process_input=process_input)
 
-    input_size = 20
+    input_size = 32 # 20, then 32 after process_input
 
     blocks_args, global_args = net_params(input_size=input_size,
                                           seq_size=256,
