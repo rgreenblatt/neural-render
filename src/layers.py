@@ -274,7 +274,7 @@ class Transformer(nn.Module):
         # NOTE to self, masking may be useful...
         for _ in range(self.n_layers):
             prev_layer = h
-            h = self._attn(h, splits)
+            # h = self._attn(h, splits)
             h = self._norm1(prev_layer + self._proj(h))
             h = self._norm2(h + self._pwff(h))
 
