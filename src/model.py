@@ -36,9 +36,9 @@ class Net(nn.Module):
         self._seq_blocks = nn.ModuleList([])
         self._seq_to_image_blocks = nn.ModuleList([])
 
-        self._input_DEBUG = nn.Linear(
-            self._global_args.input_size,
-            self._global_args.start_ch * self._global_args.start_width**2)
+        # self._input_DEBUG = nn.Linear(
+        #     self._global_args.input_size,
+        #     self._global_args.start_ch * self._global_args.start_width**2)
 
         last_ch = blocks_args[-1].output_ch
 
@@ -102,9 +102,9 @@ class Net(nn.Module):
         # so the number of items can vary.
 
         # consider layernorm here...
-        inputs_expanded = self._swish(self._input_expand(inputs))
+        seq = self._swish(self._input_expand(inputs))
 
-        seq = self._base_transformer(inputs_expanded, splits)
+        # seq = self._base_transformer(inputs_expanded, splits)
         image = self._seq_to_image_start(seq, splits)
 
         # image = self._input_DEBUG(inputs).view(inputs.size(0),
