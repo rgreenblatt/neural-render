@@ -45,7 +45,7 @@ RUN wget https://www.python.org/ftp/python/3.7.7/Python-3.7.7.tgz \
 RUN rm -rf ${BLENDER_PATH}/python/lib/python3.7/site-packages/numpy 
 
 # Must first ensurepip to install Blender pip3 and then new numpy
-RUN ${BLENDERPY} -m ensurepip && ${BLENDERPIP} install --upgrade pip && ${BLENDERPIP} install numpy tqdm
+RUN ${BLENDERPY} -m ensurepip && ${BLENDERPIP} install --upgrade pip && ${BLENDERPIP} install numpy tqdm scipy
 
 # Set the working directory
 WORKDIR /
