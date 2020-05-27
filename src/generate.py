@@ -47,11 +47,10 @@ def random_location():
 
 
 def random_rotation(scale=1.0):
-    assert scale <= 1.0
-    quat = R.random().to_quat()
+    quat = R.from_rotvec(R.random().as_rotvec()*scale).as_quat()
 
     # switch (X, Y, Z, W) to (W, X, Y, Z)
-    return np.concatenate((quat[3:] * scale, quat[:3]))
+    return np.concatenate((quat[3:], quat[:3]))
 
 
 def random_scale(location):
@@ -87,12 +86,12 @@ def random_material():
         (color, [metallic], [specular], [roughness], [transmission], emission))
 
 
-def random_scene(num_objects):
+def random_scene(num_objects, rotation_scale):
     spheres = []
     for i in range(num_objects):
         location = random_location()
-        # rotation = random_rotation()
-        rotation = np.array([1.0, 0.0, 0.0, 0.0])
+        rotation = random_rotation(rotation_scale)
+        # rotation = np.array([1.0, 0.0, 0.0, 0.0])
         scale = random_scale(location)
         # mat_params = random_material()
         mat_params = np.array(
@@ -261,7 +260,7 @@ def main():
         if i % max_batch_size == 0:
             object_count = np.random.randint(1, 8)
 
-        params = random_scene(object_count)
+        params = random_scene(object_count, 0.0)
         scene = DisplayBlenderScene(params)
 
         if not in_blender_mode:
