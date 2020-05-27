@@ -303,13 +303,13 @@ class SeqToImageStart(nn.Module):
         self.cfg = cfg
 
         self.ch_groups = self.cfg.start_ch // self.cfg.ch_per_head
-        n_heads = self.ch_groups
+        n_heads = self.ch_groups * self.cfg.start_width**2
         output_size = self.cfg.start_width**2 * self.cfg.start_ch
 
         self._avg_to_key = nn.Linear(self.cfg.seq_size, output_size)
         self._attn = MultiHeadedSelfAttention(self.cfg.seq_size,
-                                              self.cfg.start_ch,
-                                              self.cfg.start_ch,
+                                              output_size,
+                                              output_size,
                                               n_heads,
                                               query_is_input=True)
 
@@ -321,11 +321,8 @@ class SeqToImageStart(nn.Module):
             avgs.append(x[prev:after].mean(0))
         avgs = torch.stack(avgs)
 
-        key = self._avg_to_key(avgs).view(avgs.size(0),
-                                          self.cfg.start_width**2,
-                                          self.cfg.start_ch)
+        key = self._avg_to_key(avgs)
         attention_output = self._attn(x, splits, key)
-        attention_output = attention_output.transpose(1, 2)
 
         # return as NxCxHxW
         return attention_output.reshape(attention_output.size(0),
