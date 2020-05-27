@@ -79,9 +79,8 @@ class BlockArgs(_BlockArgsParams):
             return math.ceil(round(value) / self.round_by) * self.round_by
 
         self.input_ch_conv = round_valid(self.input_ch_this_block)
-        # self.output_ch_conv = (round_valid(self.output_ch_this_block) -
-        #                        round(self.attn_output_ch))
-        self.output_ch_conv = round_valid(self.output_ch_this_block)
+        self.output_ch_conv = (round_valid(self.output_ch_this_block) -
+                               round(self.attn_output_ch))
 
         if self.show_info:
             print("block num:", self.block_num)
@@ -200,6 +199,7 @@ def net_params(input_size,
                 transformer_n_layers=2,
                 image_n_heads=2,
                 norm_style=norm_style,
+                # TODO: fix hack
                 round_by=16 if norm_style.startswith('gn') else 1,
                 show_info=show_info,
             ))
@@ -212,7 +212,7 @@ def net_params(input_size,
         input_size=input_size,
         seq_size=seq_size,
         base_transformer_n_heads=8,
-        base_transformer_n_layers=8,
+        base_transformer_n_layers=4,
         nonlocal_index=nonlocal_index,
         start_ch=round(start_ch),
         ch_per_head=start_ch_per_head,

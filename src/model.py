@@ -36,10 +36,6 @@ class Net(nn.Module):
         self._seq_blocks = nn.ModuleList([])
         self._seq_to_image_blocks = nn.ModuleList([])
 
-        self._input_DEBUG = nn.Linear(
-            self._global_args.input_size,
-            self._global_args.start_ch * self._global_args.start_width**2)
-
         last_ch = blocks_args[-1].output_ch
 
         for i, block_args in enumerate(blocks_args):
@@ -107,23 +103,19 @@ class Net(nn.Module):
         seq = self._base_transformer(seq, splits)
         image = self._seq_to_image_start(seq, splits)
 
-        # image = self._input_DEBUG(inputs).view(inputs.size(0),
-        #                                        self._global_args.start_ch,
-        #                                        self._global_args.start_width,
-        #                                        self._global_args.start_width)
-
         position_ch = get_position_ch(self._global_args.start_width,
                                       self._global_args.end_width,
                                       inputs.dtype, inputs.device)
 
-        all_blocks = (self._image_blocks, self._image_to_seq_blocks, self._seq_blocks, self._seq_to_image_blocks)
+        all_blocks = (self._image_blocks, self._image_to_seq_blocks,
+                      self._seq_blocks, self._seq_to_image_blocks)
 
         for i, blocks in enumerate(zip(*all_blocks)):
             (image_b, image_to_seq_b, seq_b, seq_to_image_b) = blocks
             image = image_b(image, position_ch)
-            # seq = image_to_seq_b(seq, splits, image)
-            # seq = seq_b(seq, splits)
-            # image = seq_to_image_b(seq, splits, image)
+            seq = image_to_seq_b(seq, splits, image)
+            seq = seq_b(seq, splits)
+            image = seq_to_image_b(seq, splits, image)
 
         image = self.output_bn(image)
         image = self._swish(image)
