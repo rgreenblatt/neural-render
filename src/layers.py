@@ -318,7 +318,7 @@ class SeqToImageStart(nn.Module):
         avgs = []
         for (prev, after) in splits:
             count = after - prev
-            avgs.append(x[prev:after].mean(0)[:,None])
+            avgs.append(x[prev:after].mean(0)[None])
         avgs = torch.stack(avgs)
 
         key = self._avg_to_key(avgs)
