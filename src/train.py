@@ -133,12 +133,12 @@ def main():
     full_dataset_epoch = 21
     # TODO: make this more configurable
     lr_schedule = PiecewiseLinear([
-        (0, 0.0001),
-        (6, 0.0004),
-        (full_dataset_epoch - 1, 0.0002),
+        (0, 0.00005),
+        (6, 0.0002),
+        (full_dataset_epoch - 1, 0.00005),
         # really low to hopefully avoid trashing
         # the weights
-        (full_dataset_epoch, 0.00002),
+        (full_dataset_epoch, 0.00001),
         (full_dataset_epoch + 1, 0.00005),
         (35, 0.0002),
         (80, 0.00002),
