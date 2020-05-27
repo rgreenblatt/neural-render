@@ -104,13 +104,13 @@ class Net(nn.Module):
         # consider layernorm here...
         seq = self._swish(self._input_expand(inputs))
 
-        # seq = self._base_transformer(seq, splits)
-        # image = self._seq_to_image_start(seq, splits)
+        seq = self._base_transformer(seq, splits)
+        image = self._seq_to_image_start(seq, splits)
 
-        image = self._input_DEBUG(inputs).view(inputs.size(0),
-                                               self._global_args.start_ch,
-                                               self._global_args.start_width,
-                                               self._global_args.start_width)
+        # image = self._input_DEBUG(inputs).view(inputs.size(0),
+        #                                        self._global_args.start_ch,
+        #                                        self._global_args.start_width,
+        #                                        self._global_args.start_width)
 
         position_ch = get_position_ch(self._global_args.start_width,
                                       self._global_args.end_width,
