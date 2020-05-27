@@ -139,21 +139,16 @@ class MultiHeadedSelfAttention(nn.Module):
 
         self.n_heads = n_heads
 
-    def forward(self, x, splits, input_query=None):
+    def forward(self, x, input_query=None):
         """
-        We incorporate sequences length into the batch dimension and
-        include "splits" as an input
-
-        TODO: make this efficient with respect to long sequences
-
-        x, q(query), k(key), v(value), c(carry) : (BS(batch * seq), D(dim))
+        x, q(query), k(key), v(value), c(carry) : (B(batch), D(dim))
         * split D(dim) into (H(n_heads), W(width of head)) ; D = H * W
 
         For the key and query, W correponds to key_size (WK).
         For the value, W correponds to output_size (WO).
         """
 
-        # (BS, D) -proj-> (BS, D) -split-> (BS, H, W)
+        # (B, S, D) -proj-> (B, S, D) -split-> (B, S, H, W)
 
         if self.query_is_input:
             q = input_query
@@ -168,44 +163,24 @@ class MultiHeadedSelfAttention(nn.Module):
 
         q, k, v = (split_last(x, (self.n_heads, -1)) for x in [q, k, v])
 
-        h_values = []
+        # (B, S, H, W) -transpose-> (B, H, S, W)
+        # if using input_query, then b_q is:
+        # (B, S*, H, W) -transpose-> (B, H, S*, W)
+        # S* can be anything (output sequence size)
 
-        # handle each batch element independently (for now at least)
-        for i, (prev, after) in enumerate(splits):
-            # (BS, H, W) -slice-> (S, H, W) -transpose-> (H, S, W)
-            # -unsqueeze-> (1, H, S, W)
-            # we mostly unsqueeze for consistancy with standard models
-            # if using input_query, then b_q is:
-            # (B, S*, H, W) -index-> (S*, H, W) -transpose-> (H, S*, W)
-            # -unsqueeze-> (1, H, S*, W)
-            # S* can be anything
+        q, k, v = (x.transpose(1, 2) for x in [q, k, v])
 
-            if self.query_is_input:
-                b_q = q[i]
-            else:
-                b_q = q[prev:after]
+        # (B, H, S, WK) @ (B, H, WK, S) -> (B, H, S, S)
+        scores = q @ k.transpose(-2, -1) / np.sqrt(k.size(-1))
 
-            b_k, b_v = (x[prev:after] for x in [k, v])
-            b_q, b_k, b_v = (x.transpose(0, 1)[None] for x in [b_q, b_k, b_v])
+        # (B, H, S, S) -softmax-> (B, H, S, S) (could have dropout)
+        scores = F.softmax(scores, dim=-1)
 
-            # (1, H, S, WK) @ (1, H, WK, S) -> (1, H, S, S)
-            scores = b_q @ b_k.transpose(-2, -1) / np.sqrt(b_k.size(-1))
+        # (B, H, S, S) @ (B, H, S, WV) -> (B, H, S, WV) -trans-> (B, S, H, WV)
+        h = (scores @ v).transpose(1, 2).contiguous()
+        # -merge-> (B, S, D)
+        out = merge_last(h, 2)
 
-            # (1, H, S, S) -softmax-> (1, H, S, S) (could have dropout)
-            scores = F.softmax(scores, dim=-1)
-
-            # (1, H, S, S) @ (1, H, S, WV) -> (1, H, S, WV)
-            # -trans-> (1, S, H, WV)
-            h = (scores @ b_v).transpose(1, 2).contiguous()
-            # -merge-> (S, D)
-            h = merge_last(h, 2).squeeze(0)
-
-            h_values.append(h)
-
-        if self.query_is_input:
-            out = torch.stack(h_values)
-        else:
-            out = torch.cat(h_values, dim=0)
 
         if not self.query_is_input:
             out = out + c
@@ -270,11 +245,11 @@ class Transformer(nn.Module):
         self._pwff = PositionWiseFeedForward(cfg)
         self._norm2 = LayerNorm(cfg.size)
 
-    def forward(self, h, splits):
+    def forward(self, h):
         # NOTE to self, masking may be useful...
         for _ in range(self.n_layers):
             prev_layer = h
-            h = self._attn(h, splits)
+            h = self._attn(h)
             h = self._norm1(prev_layer + self._proj(h))
             h = self._norm2(h + self._pwff(h))
 
@@ -307,28 +282,31 @@ class SeqToImageStart(nn.Module):
         output_size = self.cfg.start_width**2 * self.cfg.start_ch
 
         self._avg_to_key = nn.Linear(self.cfg.seq_size, output_size)
+
+        # I think attn doesn't have a bias, so we use it here
+        self._count_to_output = nn.Linear(1, output_size, bias=True)
+
         self._attn = MultiHeadedSelfAttention(self.cfg.seq_size,
                                               output_size,
                                               output_size,
                                               n_heads,
                                               query_is_input=True)
 
-    def forward(self, x, splits, y=None):
-        # Uses average as reduce_key and produces NxCxHxW tensor
-        avgs = []
-        for (prev, after) in splits:
-            count = after - prev
-            avgs.append(x[prev:after].mean(0)[None])
-        avgs = torch.stack(avgs)
+    def forward(self, x, y=None):
+        # Uses average and count to produce reduce_key
+        avgs = x.mean(1, keepdim=True)
 
         key = self._avg_to_key(avgs)
-        attention_output = self._attn(x, splits, key)
+        attention_output = self._attn(x, key)
+        count_v = self._count_to_output(
+            torch.tensor([x.size(1)], dtype=x.dtype,
+                         device=x.device)).view(1, 1, -1)
+
+        output = attention_output + count_v
 
         # return as NxCxHxW
-        return attention_output.reshape(attention_output.size(0),
-                                        self.cfg.start_ch,
-                                        self.cfg.start_width,
-                                        self.cfg.start_width)
+        return output.reshape(output.size(0), self.cfg.start_ch,
+                              self.cfg.start_width, self.cfg.start_width)
 
 
 MBConvCfg = collections.namedtuple('MBConvCfg', [
@@ -489,36 +467,35 @@ class ImageToSeq(nn.Module):
         self._proj_q = nn.Linear(self.cfg.seq_size, self.cfg.seq_size)
 
     # x is seq (BS x D), y is image type data (B x C x H x W)
-    def forward(self, x, splits, y):
+    def forward(self, x, y):
         # (B x C x H x W) -pool-> (B x C)
         pooled = self._pool(y).view(y.size(0), -1)
 
-        # (B x C) -proj-> (B x D)
-        k = self._proj_k(pooled)
-        v = self._proj_v(pooled)
+        # (B x C) -proj-> (B x D) -unsqueeze-> (B x 1 x D)
+        k = self._proj_k(pooled)[:, None]
+        v = self._proj_v(pooled)[:, None]
 
-        # (BS x D) -proj-> (BS x D)
+        # (B x S x D) -proj-> (B x S x D)
         q = self._proj_q(x)
 
-        # (BS x D) -split-> (BS x H x W)
+        # (B x S x D) -split-> (B x S x H x W)
         x, q, k, v = (split_last(x, (self.cfg.n_heads, -1))
                       for x in [x, q, k, v])
 
-        out = []
+        # (B, S, H, W) -transpose-> (B, H, S, W)
+        x, q, k, v = (x.transpose(1, 2) for x in [x, q, k, v])
 
-        for i, (prev, after) in enumerate(splits):
-            b_k = k[i].unsqueeze(0)
-            b_v = v[i].unsqueeze(0)
-            b_q = q[prev:after]
-            b_x = x[prev:after]
 
-            scores = (b_q[:, :, None] @ b_k[:, :, :, None]).squeeze(-1)
-            scores = torch.sigmoid(scores)
+        # (B, H, S, WK) @ (B, H, WK, 1) -> (B, H, S, 1)
+        scores = (q @ k.transpose(-2, -1))
+        scores = torch.sigmoid(scores)
 
-            out.append(merge_last(b_x * (1 - scores) + b_v * scores, 2))
+        out = x * (1 - scores) + v * scores
 
-        # would probably also be reasonable to do just x + v * scores
-        out = torch.cat(out, dim=0)
+        # (B, H, S, WV) -trans-> (B, S, H, WV)
+        out = out.transpose(1, 2).contiguous()
+        # -merge-> (B, S, D)
+        out = merge_last(out, 2)
 
         return out
 
@@ -542,8 +519,8 @@ class SeqToImage(nn.Module):
                                               self.cfg.n_heads,
                                               query_is_input=True)
 
-    # x is seq (BS x D), y is image type data (B x C x H x W)
-    def forward(self, x, splits, y):
+    # x is seq (B x S x D), y is image type data (B x C x H x W)
+    def forward(self, x, y):
         k = self._proj_k(y)
 
         batch_size = y.size(0)
@@ -558,7 +535,7 @@ class SeqToImage(nn.Module):
 
         # attention is applied elementwise to "pixels" (similar to global
         # attention from AttnNet - just implementation differences)
-        added_values = self._attn(x, splits, k)
+        added_values = self._attn(x, k)
         added_values = added_values.permute(0, 2, 1)
         added_values = added_values.view(batch_size, -1, height, width)
 

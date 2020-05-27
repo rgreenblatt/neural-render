@@ -6,21 +6,19 @@ import torch
 import numpy as np
 import imageio
 from utils import resize
+import itertools
 
 
 def load_exr(path):
-    return imageio.imread(path)[:,:,:3]
+    return imageio.imread(path)[:, :, :3]
+
 
 def write_exr(path, img):
     return imageio.imwrite(path, img)
 
+
 class RenderedDataset(torch.utils.data.Dataset):
-    def __init__(self,
-                 p_path,
-                 img_path,
-                 resolution,
-                 transform,
-                 fake_data,
+    def __init__(self, p_path, img_path, resolution, transform, fake_data,
                  process_input):
         with open(p_path, "rb") as f:
             self.data = pickle.load(f)
@@ -70,38 +68,55 @@ class ToTensor(object):
         }
 
 
+def get_grouped_index(indexes, group_size, i):
+    return indexes[i // group_size] * group_size + i % group_size
+
+
 # compare to SubsetRandomSampler
-class SubsetSampler(torch.utils.data.sampler.Sampler):
-    r"""Samples elements from a given list of indices, without replacement.
+class SubsetGroupedSampler(torch.utils.data.sampler.Sampler):
+    r"""Samples elements from a given list of indices, without replacement
+    ensuring groups remain together.
 
     Arguments:
         indices (sequence): a sequence of indices
     """
-    def __init__(self, indices):
+    def __init__(self, indices, group_size):
         self.indices = indices
+        self.group_size = group_size
 
     def __iter__(self):
-        return (self.indices[i] for i in range(len(self.indices)))
+        return (get_grouped_index
+                for i in range(len(self.indices) * self.group_size))
 
     def __len__(self):
-        return len(self.indices)
+        return len(self.indices) * self.group_size
 
 
-def variable_length_collate_fn(batch):
-    splits = []
-    prev_c = 0
-    for b in batch:
-        b = b["inp"]
-        next_c = prev_c + b.size(0)
-        splits.append((prev_c, next_c))
+class SubsetGroupedRandomSampler(torch.utils.data.sampler.Sampler):
+    r"""Samples elements randomly from a given list of indices, without
+    replacement ensuring groups remain together.
 
-        prev_c = next_c
+    Arguments:
+        indices (sequence): a sequence of indices
+        group_size (int): the size to keep together
+        rand_perm (bool): whether or not to random shuffle
+    """
+    def __init__(self, indices, group_size, rand_perm=True):
+        self.indices = indices
+        self.group_size = group_size
+        self.rand_perm = rand_perm
 
-    inp_cat = torch.cat([b["inp"] for b in batch], dim=0)
+    def __iter__(self):
+        length = len(self.indices)
+        index_iter = torch.randperm(length) if self.rand_perm else range(
+            length)
+        index_and_place_iter = itertools.product(index_iter,
+                                                 range(self.group_size))
+        return (self.indices[i] * self.group_size + place
+                for (i, place) in index_and_place_iter)
 
-    image_stack = torch.stack([b["image"] for b in batch])
-
-    return splits, {"inp": inp_cat, "image": image_stack}
+    def __len__(self):
+        return len(self.indices) * self.group_size
 
 
 def load_dataset(p_path,
@@ -121,7 +136,9 @@ def load_dataset(p_path,
                               fake_data=fake_data,
                               process_input=process_input)
 
-    dataset_size = len(dataset)
+    # we load in chunks to ensure each batch has consistant size
+    # the dataset must have a consistant size per each group of batch_size
+    dataset_size = len(dataset) // batch_size
 
     np.random.seed(seed)
 
@@ -132,8 +149,10 @@ def load_dataset(p_path,
         np.random.shuffle(indices)
     train_indices, val_indices = indices[split:], indices[:split]
 
-    train_sampler = torch.utils.data.sampler.SubsetRandomSampler(train_indices)
-    val_sampler = SubsetSampler(val_indices)
+    train_sampler = SubsetGroupedRandomSampler(train_indices, batch_size)
+    val_sampler = SubsetGroupedRandomSampler(val_indices,
+                                             batch_size,
+                                             rand_perm=False)
 
     def make_loader(sampler):
         return torch.utils.data.DataLoader(
@@ -141,7 +160,6 @@ def load_dataset(p_path,
             batch_size=batch_size,
             num_workers=num_workers,
             sampler=sampler,
-            collate_fn=variable_length_collate_fn,
             pin_memory=True,
         )
 

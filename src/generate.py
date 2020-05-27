@@ -9,6 +9,7 @@ from tqdm import tqdm
 import bpy
 import mathutils
 import numpy as np
+from scipy.spatial.transform import Rotation as R
 
 
 def mkdirs(path):
@@ -45,25 +46,20 @@ def random_location():
     return base_loc + translate
 
 
-def random_rotation():
-    values = np.random.uniform(size=[3])
-    u = values[0]
-    v = values[1]
-    w = values[2]
+def random_rotation(scale=1.0):
+    assert scale <= 1.0
+    quat = R.random().to_quat()
 
-    return np.array([
-        np.sqrt(1 - u) * np.sin(2 * math.pi * v),
-        np.sqrt(1 - u) * np.cos(2 * math.pi * v),
-        np.sqrt(u) * np.sin(2 * math.pi * w),
-        np.sqrt(u) * np.cos(2 * math.pi * w),
-    ])
+    # switch (X, Y, Z, W) to (W, X, Y, Z)
+    return np.concatenate((quat[3:] * scale, quat[:3]))
 
 
 def random_scale(location):
-    base_scale = np.exp(np.random.normal(loc=-3.0)) * location[1]
-    components_scale = np.random.uniform(low=0.5, high=1.5, size=[3])
+    # base_scale = np.exp(np.random.normal(loc=-3.0)) * location[1]
+    # components_scale = np.random.uniform(low=0.5, high=1.5, size=[3])
 
-    return base_scale * components_scale
+    # return base_scale * components_scale
+    return np.random.uniform(low=0.5, high=1.5, size=[3])
 
 
 def random_material():
@@ -91,17 +87,13 @@ def random_material():
         (color, [metallic], [specular], [roughness], [transmission], emission))
 
 
-def random_scene():
-    # num_objects = np.random.randint(1, 100)
-    num_objects = 1
-
+def random_scene(num_objects):
     spheres = []
     for i in range(num_objects):
-        # location = random_location()
-        location = np.array([0.0, 0.0, 0.0])
-        rotation = random_rotation()
-        # scale = random_scale(location)
-        scale = np.array([1.0, 1.0, 1.0])
+        location = random_location()
+        # rotation = random_rotation()
+        rotation = np.array([1.0, 0.0, 0.0, 0.0])
+        scale = random_scale(location)
         # mat_params = random_material()
         mat_params = np.array(
             [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0])
@@ -228,6 +220,7 @@ def main():
         parser.add_argument('--samples', type=int, default=128)
         parser.add_argument('--count', type=int, default=128)
         parser.add_argument('--seed', type=int, default=0)
+        parser.add_argument('--max-batch-size', type=int, default=64)
         args = parser.parse_args(argv)
 
         bpy.context.scene.render.resolution_x = args.resolution
@@ -237,9 +230,11 @@ def main():
 
         count = args.count
         seed = args.seed
+        max_batch_size = args.max_batch_size
     else:
         count = 1
         seed = 0
+        max_batch_size = 1
 
     save_dir = "data/"
 
@@ -260,8 +255,13 @@ def main():
 
     scenes = []
 
+    object_count = None
+
     for i in tqdm(range(count)):
-        params = random_scene()
+        if i % max_batch_size == 0:
+            object_count = np.random.randint(1, 8)
+
+        params = random_scene(object_count)
         scene = DisplayBlenderScene(params)
 
         if not in_blender_mode:
