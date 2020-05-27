@@ -113,8 +113,8 @@ class Net(nn.Module):
         for i, blocks in enumerate(zip(*all_blocks)):
             (image_b, image_to_seq_b, seq_b, seq_to_image_b) = blocks
             image = image_b(image, position_ch)
-            seq = image_to_seq_b(seq, splits, image)
-            seq = seq_b(seq, splits)
+            # seq = image_to_seq_b(seq, splits, image)
+            # seq = seq_b(seq, splits)
             image = seq_to_image_b(seq, splits, image)
 
         image = self.output_bn(image)
