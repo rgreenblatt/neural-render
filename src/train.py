@@ -201,11 +201,11 @@ def main():
         output_images_test = None
 
         with torch.no_grad():
-            for i, (splits, data) in enumerate(test):
+            for i, data in enumerate(test):
                 inp = data['inp'].to(device)
                 image = data['image'].to(device)
 
-                outputs = net(inp, splits)
+                outputs = net(inp)
 
                 if i < test_batches_to_save:
                     cpu_images = linear_to_srgb(image.detach().cpu())
