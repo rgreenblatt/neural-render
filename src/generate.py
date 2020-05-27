@@ -41,7 +41,7 @@ def random_location():
     # base_loc = np.array([0.0, 15.0, 0.0])
     # translate = np.random.uniform(low=-12.0, high=10.0, size=[3])
     base_loc = np.array([0.0, 0.0, 0.0])
-    translate = np.random.uniform(low=-1.0, high=1.0, size=[3])
+    translate = np.random.uniform(low=-2.0, high=2.0, size=[3])
 
     return base_loc + translate
 
@@ -91,8 +91,7 @@ def random_scene(num_objects, rotation_scale):
     for i in range(num_objects):
         location = random_location()
         rotation = random_rotation(rotation_scale)
-        # scale = random_scale(location)
-        scale = np.array([1.0, 1.0, 1.0])
+        scale = random_scale(location)
         # mat_params = random_material()
         mat_params = np.array(
             [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0])
@@ -258,10 +257,9 @@ def main():
 
     for i in tqdm(range(count)):
         if i % max_batch_size == 0:
-            # object_count = np.random.randint(1, 8)
-            object_count = 5
+            object_count = np.random.randint(1, 8)
 
-        params = random_scene(object_count, 0.0)
+        params = random_scene(object_count, 1.0)
         scene = DisplayBlenderScene(params)
 
         if not in_blender_mode:
