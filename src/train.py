@@ -134,7 +134,11 @@ def main():
     # TODO: make this more configurable
     lr_schedule = PiecewiseLinear([(0, 0.0001), (3, 0.0004),
                                    (full_dataset_epoch - 1, 0.0002),
-                                   (full_dataset_epoch, 0.0001), (20, 0.0004),
+                                   # really low to hopefully avoid trashing
+                                   # the weights
+                                   (full_dataset_epoch, 0.00002),
+                                   (full_dataset_epoch+1, 0.0001),
+                                   (20, 0.0004),
                                    (70, 0.00005), (100, 0.00005)])
     print("at 10:", lr_schedule(10))
     print("at 11:", lr_schedule(11))
