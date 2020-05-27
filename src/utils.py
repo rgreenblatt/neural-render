@@ -90,8 +90,10 @@ def get_position_ch(min_width, max_width, dtype, device):
 
 # Note: expects tensor type in standard format (N x C x H x W)
 def linear_to_srgb(img):
-    return torch.where(img <= 0.0031308, 12.92 * img,
-                       1.055 * torch.pow(img, 1 / 2.4) - 0.055)
+    return torch.clamp(torch.where(img <= 0.0031308, 12.92 * img,
+                                   1.055 * torch.pow(img, 1 / 2.4) - 0.055),
+                       min=0.0,
+                       max=1.0)
 
 
 # Note: expects numpy format image (H x W x C)
