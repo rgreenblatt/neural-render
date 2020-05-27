@@ -19,9 +19,9 @@ def write_exr(path, img):
 
 class RenderedDataset(torch.utils.data.Dataset):
     def __init__(self, p_path, img_path, resolution, transform, fake_data,
-                 process_input):
+                 process_input, start_range, end_range):
         with open(p_path, "rb") as f:
-            self.data = pickle.load(f)
+            self.data = pickle.load(f)[start_range:end_range]
         self.img_path = img_path
         self.transform = transform
         self.resolution = resolution
@@ -128,13 +128,17 @@ def load_dataset(p_path,
                  shuffle_split,
                  num_workers=0,
                  fake_data=False,
-                 process_input=lambda x: x):
+                 process_input=lambda x: x,
+                 start_range=0,
+                 end_range=-1):
     dataset = RenderedDataset(p_path,
                               img_path,
                               resolution,
                               transform=ToTensor(),
                               fake_data=fake_data,
-                              process_input=process_input)
+                              process_input=process_input,
+                              start_range=start_range,
+                              end_range=end_range)
 
     # we load in chunks to ensure each batch has consistant size
     # the dataset must have a consistant size per each group of batch_size

@@ -21,9 +21,11 @@ def mkdirs(path):
     Path(path).mkdir(parents=True, exist_ok=True)
 
 
-class PiecewiseLinear(namedtuple('PiecewiseLinear', ('knots', 'vals'))):
+class PiecewiseLinear(namedtuple('PiecewiseLinear', ('knots_vals'))):
     def __call__(self, t):
-        return np.interp([t], self.knots, self.vals)[0]
+        knots = [x[0] for x in self.knots_vals]
+        vals = [x[1] for x in self.knots_vals]
+        return np.interp([t], knots, vals)[0]
 
 
 # Swish and MemoryEfficientSwish: Two implementations of the method

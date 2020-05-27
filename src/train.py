@@ -65,19 +65,19 @@ def main():
         return np.concatenate(
             (inp, mat_arr, rot_vec_arr), axis=1)
 
-
-
-
-    train, test = load_dataset(p_path,
-                               img_path,
-                               img_width,
-                               batch_size,
-                               valid_prop,
-                               args.valid_split_seed,
-                               True,
-                               num_workers=8,
-                               fake_data=args.fake_data,
-                               process_input=process_input)
+    def get_dataset(start_range, end_range):
+        return load_dataset(p_path,
+                            img_path,
+                            img_width,
+                            batch_size,
+                            valid_prop,
+                            args.valid_split_seed,
+                            True,
+                            num_workers=8,
+                            fake_data=args.fake_data,
+                            process_input=process_input,
+                            start_range=start_range,
+                            end_range=end_range)
 
     input_size = 32 # 20, then 32 after process_input
 
@@ -128,11 +128,16 @@ def main():
         total, to_print = recursive_param_print(net)
         print(to_print)
 
-    # TODO: consider switching to l1 (as opposed to l2)
     criterion = torch.nn.MSELoss()
     epoches = args.epoches
-    lr_schedule = PiecewiseLinear([0, 10, 70, 100],
-                                  [0.0005, 0.002, 0.0002, 0.00002])
+    full_dataset_epoch = 11
+    # TODO: make this more configurable
+    lr_schedule = PiecewiseLinear([(0, 0.0001), (3, 0.0004),
+                                   (full_dataset_epoch - 1, 0.0002),
+                                   (full_dataset_epoch, 0.0001), (20, 0.0004),
+                                   (70, 0.00005), (100, 0.00005)])
+    print("at 10:", lr_schedule(10))
+    print("at 11:", lr_schedule(11))
     optimizer = torch.optim.Adam(net.parameters(), lr=0.1, weight_decay=0.0)
 
     if not args.profile:
@@ -152,6 +157,11 @@ def main():
     train_batches_to_save = math.ceil(args.train_images_to_save / batch_size)
     test_batches_to_save = math.ceil(args.test_images_to_save / batch_size)
 
+    initial_range_start = 0
+    initial_range_end = 4096
+
+    train, test = get_dataset(initial_range_start, initial_range_end)
+
     for epoch in range(epoches):
         net.train()
         train_loss = 0.0
@@ -160,6 +170,9 @@ def main():
 
         for param_group in optimizer.param_groups:
             param_group['lr'] = lr
+
+        if epoch == full_dataset_epoch:
+            train, test = get_dataset(0, -1)
 
         actual_images_train = None
         output_images_train = None
