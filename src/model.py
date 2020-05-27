@@ -36,9 +36,9 @@ class Net(nn.Module):
         self._seq_blocks = nn.ModuleList([])
         self._seq_to_image_blocks = nn.ModuleList([])
 
-        # self._input_DEBUG = nn.Linear(
-        #     self._global_args.input_size,
-        #     self._global_args.start_ch * self._global_args.start_width**2)
+        self._input_DEBUG = nn.Linear(
+            self._global_args.input_size,
+            self._global_args.start_ch * self._global_args.start_width**2)
 
         last_ch = blocks_args[-1].output_ch
 
