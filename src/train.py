@@ -133,16 +133,16 @@ def main():
     full_dataset_epoch = 21
     # TODO: make this more configurable
     lr_schedule = PiecewiseLinear([
-        (0, 0.00005),
-        (6, 0.0002),
-        (full_dataset_epoch - 1, 0.00005),
+        (0, 0.00002),
+        (6, 0.0001),
+        (full_dataset_epoch - 1, 0.00002),
         # really low to hopefully avoid trashing
         # the weights
-        (full_dataset_epoch, 0.00001),
-        (full_dataset_epoch + 1, 0.00005),
-        (35, 0.0002),
-        (80, 0.00002),
-        (100, 0.000002)
+        (full_dataset_epoch, 0.000005),
+        (full_dataset_epoch + 1, 0.00002),
+        (35, 0.0001),
+        (80, 0.00001),
+        (100, 0.000001)
     ])
 
     optimizer = torch.optim.Adam(net.parameters(), lr=0.1, weight_decay=0.0)
