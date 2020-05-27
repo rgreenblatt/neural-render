@@ -91,8 +91,8 @@ def random_scene(num_objects, rotation_scale):
     for i in range(num_objects):
         location = random_location()
         rotation = random_rotation(rotation_scale)
-        # rotation = np.array([1.0, 0.0, 0.0, 0.0])
-        scale = random_scale(location)
+        # scale = random_scale(location)
+        scale = np.array([1.0, 1.0, 1.0])
         # mat_params = random_material()
         mat_params = np.array(
             [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0])
