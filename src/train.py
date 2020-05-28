@@ -204,7 +204,8 @@ def main():
     initial_range_start = 0
     initial_range_end = -1
 
-    train, test = get_dataset(initial_range_start, initial_range_end)
+    train, test, epoch_callback = get_dataset(initial_range_start,
+                                              initial_range_end)
 
     for epoch in range(epoches):
         net.train()
@@ -217,15 +218,17 @@ def main():
 
         # if epoch == epoch_mark_0:
         #     print("extending dataset at epoch_mark_0")
-        #     train, test = get_dataset(0, -1)
+        #     train, test, epoch_callback = get_dataset(0, -1)
 
         # if epoch == epoch_mark_1:
         #     print("extending dataset at epoch_mark_1")
-        #     train, test = get_dataset(0, 12288)
+        #     train, test, epoch_callback = get_dataset(0, 12288)
 
         # if epoch == epoch_mark_2:
         #     print("extending dataset at epoch_mark_2")
-        #     train, test = get_dataset(0, -1)
+        #     train, test, epoch_callback = get_dataset(0, -1)
+
+        epoch_callback(epoch)
 
         actual_images_train = None
         output_images_train = None

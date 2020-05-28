@@ -123,12 +123,7 @@ class SubsetGroupedRandomDistributedSampler(torch.utils.data.sampler.Sampler):
     def __iter__(self):
         # deterministically shuffle based on epoch
         g = torch.Generator()
-
-        if self.num_replicas != 1:
-            g.manual_seed(self.epoch)
-        else:
-            # TODO: grossss
-            g.manual_seed(np.random.randint(0, 1000000))
+        g.manual_seed(self.epoch)
 
         if self.shuffle:
             indices = torch.randperm(len(self.indices), generator=g).tolist()
@@ -152,6 +147,9 @@ class SubsetGroupedRandomDistributedSampler(torch.utils.data.sampler.Sampler):
 
     def __len__(self):
         return self.num_samples * self.group_size
+
+    def set_epoch(self, epoch):
+        self.epoch = epoch
 
 
 def load_dataset(p_path,
@@ -212,4 +210,8 @@ def load_dataset(p_path,
     train_loader = make_loader(train_sampler)
     val_loader = make_loader(val_sampler)
 
-    return train_loader, val_loader
+    def epoch_callback(epoch):
+        train_sampler.set_epoch(epoch)
+        val_sampler.set_epoch(epoch)  # not really required
+
+    return train_loader, val_loader, epoch_callback
