@@ -10,6 +10,8 @@ from torch.utils.tensorboard import SummaryWriter
 import numpy as np
 from torchvision.utils import make_grid
 from scipy.spatial.transform import Rotation as R
+from apex.parallel import DistributedDataParallel, convert_syncbn_model
+from apex import amp
 
 from model import Net
 from load_data import load_dataset
@@ -31,12 +33,8 @@ def main():
     parser.add_argument('--max-ch', type=int, default=256)
     parser.add_argument('--epoches', type=int, default=100)
     parser.add_argument('--no-cudnn-benchmark', action='store_true')
-    parser.add_argument('--local_rank',
-                        type=int,
-                        default=0)
-    parser.add_argument('--ngpu',
-                        type=int,
-                        default=1)
+    parser.add_argument('--local_rank', type=int, default=0)
+    parser.add_argument('--opt-level', default='O1')
     parser.add_argument('--no-sync-bn',
                         action='store_true',
                         help='do not use sync bn when running in parallel')
@@ -50,20 +48,19 @@ def main():
 
     torch.backends.cudnn.benchmark = not args.no_cudnn_benchmark
 
-    if args.ngpu != 1:
-        assert torch.cuda.is_available()
+    args.distributed = False
+    if 'WORLD_SIZE' in os.environ:
+        args.distributed = int(os.environ['WORLD_SIZE']) > 1
 
-    if args.ngpu != 1:
-        world_size = args.ngpu
+    args.gpu = 0
+    args.world_size = 1
 
-        torch.distributed.init_process_group(
-            'nccl',
-            init_method='env://',
-            world_size=world_size,
-            rank=args.local_rank,
-        )
-
-
+    if args.distributed:
+        args.gpu = args.local_rank
+        torch.cuda.set_device(args.gpu)
+        torch.distributed.init_process_group(backend='nccl',
+                                             init_method='env://')
+        args.world_size = torch.distributed.get_world_size()
 
     device = torch.device("cuda:{}".format(args.local_rank) if torch.cuda.
                           is_available() else "cpu")
@@ -106,7 +103,7 @@ def main():
                             process_input=process_input,
                             start_range=start_range,
                             end_range=end_range,
-                            num_replicas=args.ngpu,
+                            num_replicas=args.world_size,
                             rank=args.local_rank)
 
     input_size = 32 # 20, then 32 after process_input
@@ -122,14 +119,18 @@ def main():
     net = Net(blocks_args, global_args)
 
     # does the order of these matter???
-    if args.ngpu != 1 and not args.no_sync_bn:
-        net = nn.SyncBatchNorm.convert_sync_batchnorm(net)
+    if args.distributed and not args.no_sync_bn:
+        net = convert_sync_batchnorm(net)
+
+    optimizer = torch.optim.Adam(net.parameters(), lr=0.1, weight_decay=0.0)
 
     net = net.to(device)
 
-    if args.ngpu != 1:
-        net = nn.parallel.DistributedDataParallel(
-            net, device_ids=[args.local_rank], output_device=args.local_rank)
+    # TODO: keep bn f32 arg?
+    net, optimizer = amp.initialize(net, optimizer, opt_level=args.opt_level)
+
+    if args.distributed:
+        net = DistributedDataParallel(net)
 
     if not hide_model_info:
         print(net)
@@ -169,7 +170,7 @@ def main():
         total, to_print = recursive_param_print(net)
         print(to_print)
 
-    criterion = torch.nn.MSELoss()
+    criterion = torch.nn.MSELoss().to(device)
     epoches = args.epoches
     # epoch_mark_0 = 20
     # epoch_mark_1 = 40
@@ -181,8 +182,6 @@ def main():
         (80, 1e-5),
         (100, 1e-7),
     ])
-
-    optimizer = torch.optim.Adam(net.parameters(), lr=0.1, weight_decay=0.0)
 
     if not args.profile:
         output_dir = "outputs/{}/".format(args.name)
