@@ -88,18 +88,18 @@ def main():
         mat_arr.resize((inp.shape[0], 9))
         rot_vec_arr = rot.as_rotvec()
 
-        # location = inp[:, :3]
-        # scale = inp[:, 7:10]
+        location = inp[:, :3]
+        scale = inp[:, 7:10]
 
-        # cube_points = np.empty((inp.shape[0], 24))
-        # for i, point in enumerate(itertools.product([-1, 1], [-1, 1], [-1, 1])):
-        #     point = np.array(point)
+        cube_points = np.empty((inp.shape[0], 24))
+        for i, point in enumerate(itertools.product([-1, 1], [-1, 1], [-1, 1])):
+            point = np.array(point)
 
-        #     point *= scale
-        #     point = rot.apply(point)
-        #     point += location
+            point *= scale
+            point = rot.apply(point)
+            point += location
 
-        #     cube_points[:, i * 3:(i + 1) * 3] = point
+            cube_points[:, i * 3:(i + 1) * 3] = point
 
         return np.concatenate(
             (inp, mat_arr, rot_vec_arr), axis=1)
@@ -120,7 +120,7 @@ def main():
                             num_replicas=args.world_size,
                             rank=args.local_rank)
 
-    input_size = 32 # 20, then 56 after process_input
+    input_size = 56 # 20, then 56 after process_input
 
     blocks_args, global_args = net_params(input_size=input_size,
                                           seq_size=256,
