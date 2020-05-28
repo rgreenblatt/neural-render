@@ -260,7 +260,7 @@ def main():
             object_count = 1
             # object_count = np.random.randint(1, 8)
 
-        params = random_scene(object_count, 1.0)
+        params = random_scene(object_count, 0.25)
         scene = DisplayBlenderScene(params)
 
         if not in_blender_mode:

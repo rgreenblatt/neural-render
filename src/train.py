@@ -130,18 +130,22 @@ def main():
 
     criterion = torch.nn.MSELoss()
     epoches = args.epoches
-    full_dataset_epoch = 21
+    epoch_mark_0 = 20
+    epoch_mark_1 = 40
     # TODO: make this more configurable
     lr_schedule = PiecewiseLinear([
         (0, 2e-5),
         (6, 1e-4),
-        (full_dataset_epoch - 1, 2e-5),
+        (epoch_mark_0 - 1, 2e-5),
         # really low to hopefully avoid trashing
         # the weights
-        (full_dataset_epoch, 2e-6),
-        (35, 2e-5),
-        (80, 1e-6),
-        (100, 1e-7)
+        (epoch_mark_0, 2e-6),
+        (26, 2e-5),
+        (epoch_mark_1 - 1, 1e-6),
+        (epoch_mark_1, 1e-6),
+        (50, 1e-5),
+        (90, 5e-7),
+        (110, 1e-7)
     ])
 
     optimizer = torch.optim.Adam(net.parameters(), lr=0.1, weight_decay=0.0)
@@ -177,7 +181,10 @@ def main():
         for param_group in optimizer.param_groups:
             param_group['lr'] = lr
 
-        if epoch == full_dataset_epoch:
+        if epoch == epoch_mark_0:
+            train, test = get_dataset(0, 8192)
+
+        if epoch == epoch_mark_1:
             train, test = get_dataset(0, -1)
 
         actual_images_train = None
