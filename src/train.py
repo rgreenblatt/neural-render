@@ -135,9 +135,9 @@ def main():
     epoch_mark_2 = 60
     # TODO: make this more configurable
     lr_schedule = PiecewiseLinear([
-        (0, 2e-5),
-        (6, 2e-4),
-        (epoch_mark_0 - 1, 2e-5),
+        (0, 1e-5),
+        (6, 1e-4),
+        (epoch_mark_0 - 1, 1e-5),
         (epoch_mark_0, 1e-5),
         (epoch_mark_0 + 6, 1e-4),
         (epoch_mark_1 - 1, 1e-5),
