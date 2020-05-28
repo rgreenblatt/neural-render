@@ -92,8 +92,9 @@ def main():
         scale = inp[:, 7:10]
 
         cube_points = np.empty((inp.shape[0], 24))
-        for i, point in enumerate(itertools.product([-1, 1], [-1, 1], [-1, 1])):
-            point = np.array(point)
+        for i, point in enumerate(
+                itertools.product([-1.0, 1.0], [-1.0, 1.0], [-1.0, 1.0])):
+            point = np.tile(np.array(point), (inp.shape[0], 1))
 
             point *= scale
             point = rot.apply(point)
@@ -101,8 +102,7 @@ def main():
 
             cube_points[:, i * 3:(i + 1) * 3] = point
 
-        return np.concatenate(
-            (inp, mat_arr, rot_vec_arr), axis=1)
+        return np.concatenate((inp, mat_arr, rot_vec_arr, cube_points), axis=1)
 
     def get_dataset(start_range, end_range):
         return load_dataset(p_path,
