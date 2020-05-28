@@ -99,17 +99,18 @@ class SubsetGroupedRandomDistributedSampler(torch.utils.data.sampler.Sampler):
     Arguments:
         indices (sequence): a sequence of indices
         group_size (int): the size to keep together
-        rand_perm (bool): whether or not to random shuffle
+        shuffle (bool): whether or not to random shuffle
+        TODO
     """
     def __init__(self,
                  indices,
                  group_size,
-                 num_repicas=1,
+                 num_replicas=1,
                  rank=0,
-                 rand_perm=True):
+                 shuffle=True):
         self.indices = indices
         self.group_size = group_size
-        self.rand_perm = rand_perm
+        self.shuffle = shuffle
 
         self.epoch = 0
 
@@ -189,13 +190,13 @@ def load_dataset(p_path,
     train_indices, val_indices = indices[split:], indices[:split]
 
     train_sampler = SubsetGroupedRandomDistributedSampler(
-        train_indices, batch_size, num_repicas=num_replicas, rank=rank)
+        train_indices, batch_size, num_replicas=num_replicas, rank=rank)
     val_sampler = SubsetGroupedRandomDistributedSampler(
         val_indices,
         batch_size,
-        num_repicas=num_replicas,
+        num_replicas=num_replicas,
         rank=rank,
-        rand_perm=False)
+        shuffle=False)
 
     def make_loader(sampler):
         return torch.utils.data.DataLoader(

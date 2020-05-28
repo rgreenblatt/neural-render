@@ -171,18 +171,14 @@ def main():
 
     criterion = torch.nn.MSELoss()
     epoches = args.epoches
-    epoch_mark_0 = 20
+    # epoch_mark_0 = 20
     # epoch_mark_1 = 40
     # epoch_mark_2 = 60
     # TODO: make this more configurable
     lr_schedule = PiecewiseLinear([
-        (0, 2e-5),
-        (6, 1e-4),
-        (epoch_mark_0 - 1, 1e-5),
-        (epoch_mark_0, 1e-6),
-        (epoch_mark_0, 1e-5),
-        (30, 2e-5),
-        (80, 2e-6),
+        (0, 4e-5),
+        (20, 1e-4),
+        (80, 1e-5),
         (100, 1e-7),
     ])
 
@@ -206,7 +202,7 @@ def main():
     test_batches_to_save = math.ceil(args.test_images_to_save / batch_size)
 
     initial_range_start = 0
-    initial_range_end = 8192
+    initial_range_end = -1
 
     train, test = get_dataset(initial_range_start, initial_range_end)
 
@@ -219,17 +215,17 @@ def main():
         for param_group in optimizer.param_groups:
             param_group['lr'] = lr
 
-        if epoch == epoch_mark_0:
-            print("extending dataset at epoch_mark_0")
-            train, test = get_dataset(0, -1)
+        # if epoch == epoch_mark_0:
+        #     print("extending dataset at epoch_mark_0")
+        #     train, test = get_dataset(0, -1)
 
-#         if epoch == epoch_mark_1:
-#             print("extending dataset at epoch_mark_1")
-#             train, test = get_dataset(0, 12288)
+        # if epoch == epoch_mark_1:
+        #     print("extending dataset at epoch_mark_1")
+        #     train, test = get_dataset(0, 12288)
 
-#         if epoch == epoch_mark_2:
-#             print("extending dataset at epoch_mark_2")
-#             train, test = get_dataset(0, -1)
+        # if epoch == epoch_mark_2:
+        #     print("extending dataset at epoch_mark_2")
+        #     train, test = get_dataset(0, -1)
 
         actual_images_train = None
         output_images_train = None
