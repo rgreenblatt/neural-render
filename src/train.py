@@ -105,7 +105,9 @@ def main():
                             fake_data=args.fake_data,
                             process_input=process_input,
                             start_range=start_range,
-                            end_range=end_range)
+                            end_range=end_range,
+                            num_replicas=args.ngpu,
+                            rank=args.local_rank)
 
     input_size = 32 # 20, then 32 after process_input
 

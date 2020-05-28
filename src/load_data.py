@@ -1,4 +1,5 @@
 import os
+import math
 import pickle
 
 import torchvision
@@ -91,8 +92,7 @@ class SubsetGroupedSampler(torch.utils.data.sampler.Sampler):
     def __len__(self):
         return len(self.indices) * self.group_size
 
-
-class SubsetGroupedRandomSampler(torch.utils.data.sampler.Sampler):
+class SubsetGroupedRandomDistributedSampler(torch.utils.data.sampler.Sampler):
     r"""Samples elements randomly from a given list of indices, without
     replacement ensuring groups remain together.
 
@@ -101,22 +101,55 @@ class SubsetGroupedRandomSampler(torch.utils.data.sampler.Sampler):
         group_size (int): the size to keep together
         rand_perm (bool): whether or not to random shuffle
     """
-    def __init__(self, indices, group_size, rand_perm=True):
+    def __init__(self,
+                 indices,
+                 group_size,
+                 num_repicas=1,
+                 rank=0,
+                 rand_perm=True):
         self.indices = indices
         self.group_size = group_size
         self.rand_perm = rand_perm
 
+        self.epoch = 0
+
+        self.num_replicas = num_replicas
+        self.rank = rank
+
+        self.num_samples = math.ceil(len(self.indices) / self.num_replicas)
+        self.total_size = self.num_samples * self.num_replicas
+
     def __iter__(self):
-        length = len(self.indices)
-        index_iter = torch.randperm(length) if self.rand_perm else range(
-            length)
-        index_and_place_iter = itertools.product(index_iter,
+        # deterministically shuffle based on epoch
+        g = torch.Generator()
+
+        if self.num_replicas != 1:
+            g.manual_seed(self.epoch)
+        else:
+            g.manual_seed(torch.random.seed())
+
+        if self.shuffle:
+            indices = torch.randperm(len(self.indices), generator=g).tolist()
+        else:
+            indices = list(range(len(self.indices)))
+
+
+        # add extra samples to make it evenly divisible
+        indices += indices[:(self.total_size - len(indices))]
+        assert len(indices) == self.total_size
+
+        # subsample
+        indices = indices[self.rank:self.total_size:self.num_replicas]
+        assert len(indices) == self.num_samples
+
+        index_and_place_iter = itertools.product(indices,
                                                  range(self.group_size))
+
         return (self.indices[i] * self.group_size + place
                 for (i, place) in index_and_place_iter)
 
     def __len__(self):
-        return len(self.indices) * self.group_size
+        return self.num_samples * self.group_size
 
 
 def load_dataset(p_path,
@@ -130,7 +163,9 @@ def load_dataset(p_path,
                  fake_data=False,
                  process_input=lambda x: x,
                  start_range=0,
-                 end_range=-1):
+                 end_range=-1,
+                 num_replicas=1,
+                 rank=0):
     dataset = RenderedDataset(p_path,
                               img_path,
                               resolution,
@@ -153,10 +188,14 @@ def load_dataset(p_path,
         np.random.shuffle(indices)
     train_indices, val_indices = indices[split:], indices[:split]
 
-    train_sampler = SubsetGroupedRandomSampler(train_indices, batch_size)
-    val_sampler = SubsetGroupedRandomSampler(val_indices,
-                                             batch_size,
-                                             rand_perm=False)
+    train_sampler = SubsetGroupedRandomDistributedSampler(
+        train_indices, batch_size, num_repicas=num_replicas, rank=rank)
+    val_sampler = SubsetGroupedRandomDistributedSampler(
+        val_indices,
+        batch_size,
+        num_repicas=num_replicas,
+        rank=rank,
+        rand_perm=False)
 
     def make_loader(sampler):
         return torch.utils.data.DataLoader(
@@ -165,6 +204,7 @@ def load_dataset(p_path,
             num_workers=num_workers,
             sampler=sampler,
             pin_memory=True,
+            drop_last=True,
         )
 
     train_loader = make_loader(train_sampler)
