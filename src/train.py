@@ -3,6 +3,7 @@ import argparse
 import sys
 import datetime
 import math
+import itertools
 
 import torch
 from torch import nn
