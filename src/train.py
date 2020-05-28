@@ -327,12 +327,12 @@ def main():
             writer.add_scalar("loss/test", test_loss, epoch)
             writer.add_scalar("lr", lr, epoch)
 
-        if not args.profile and (epoch + 1) % args.save_model_every == 0:
-            torch.save(
-                net, os.path.join(model_save_output, "net_{}.p".format(epoch)))
+        # if not args.profile and (epoch + 1) % args.save_model_every == 0:
+        #     torch.save(
+        #         net, os.path.join(model_save_output, "net_{}.p".format(epoch)))
 
-    if not args.profile:
-        torch.save(net, os.path.join(model_save_output, "net_final.p"))
+    # if not args.profile:
+    #     torch.save(net, os.path.join(model_save_output, "net_final.p"))
 
 
 if __name__ == "__main__":
