@@ -72,7 +72,8 @@ def main():
     batch_size = args.batch_size
     valid_prop = 0.2
 
-    hide_model_info = args.hide_model_info or args.profile
+    disable_all_output = args.local_rank != 0 or args.profile
+    hide_model_info = args.hide_model_info or disable_all_output
 
     img_width = args.resolution
 
@@ -197,7 +198,7 @@ def main():
         (100, 1e-7),
     ])
 
-    if not args.profile:
+    if not disable_all_output:
         output_dir = "outputs/{}/".format(args.name)
         tensorboard_output = os.path.join(output_dir, "tensorboard")
         model_save_output = os.path.join(output_dir, "models")
@@ -310,10 +311,11 @@ def main():
 
         test_loss /= len(test)
 
-        print("{}, epoch: {}, train loss: {}, test loss: {}, lr: {}".format(
-            datetime.datetime.now(), epoch, train_loss, test_loss, lr))
+        if not disable_all_output:
+            print(
+                "{}, epoch: {}, train loss: {}, test loss: {}, lr: {}".format(
+                    datetime.datetime.now(), epoch, train_loss, test_loss, lr))
 
-        if not args.profile:
             if actual_images_train is not None:
                 writer.add_image("images/train/actual",
                                  make_grid(actual_images_train), epoch)
@@ -330,11 +332,11 @@ def main():
             writer.add_scalar("loss/test", test_loss, epoch)
             writer.add_scalar("lr", lr, epoch)
 
-        # if not args.profile and (epoch + 1) % args.save_model_every == 0:
+        # if not disable_all_output and (epoch + 1) % args.save_model_every == 0:
         #     torch.save(
         #         net, os.path.join(model_save_output, "net_{}.p".format(epoch)))
 
-    # if not args.profile:
+    # if not disable_all_output:
     #     torch.save(net, os.path.join(model_save_output, "net_final.p"))
 
 
