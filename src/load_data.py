@@ -127,7 +127,8 @@ class SubsetGroupedRandomDistributedSampler(torch.utils.data.sampler.Sampler):
         if self.num_replicas != 1:
             g.manual_seed(self.epoch)
         else:
-            g.manual_seed(torch.random.seed())
+            # TODO: grossss
+            g.manual_seed(np.random.randint(0, 1000000))
 
         if self.shuffle:
             indices = torch.randperm(len(self.indices), generator=g).tolist()
