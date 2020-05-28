@@ -28,7 +28,7 @@ def main():
     parser.add_argument('--name', required=True)
     parser.add_argument('--norm-style', default='bn')
     parser.add_argument('--max-ch', type=int, default=256)
-    parser.add_argument('--epoches', type=int, default=100)
+    parser.add_argument('--epoches', type=int, default=120)
     parser.add_argument('--profile', action='store_true')
     parser.add_argument('--profile-len', type=int, default=4)
     parser.add_argument('--hide-model-info', action='store_true')
@@ -132,20 +132,22 @@ def main():
     epoches = args.epoches
     epoch_mark_0 = 20
     epoch_mark_1 = 40
+    epoch_mark_2 = 60
     # TODO: make this more configurable
     lr_schedule = PiecewiseLinear([
         (0, 2e-5),
-        (6, 1e-4),
+        (6, 2e-4),
         (epoch_mark_0 - 1, 2e-5),
-        # really low to hopefully avoid trashing
-        # the weights
-        (epoch_mark_0, 2e-6),
-        (26, 2e-5),
-        (epoch_mark_1 - 1, 1e-6),
-        (epoch_mark_1, 1e-6),
-        (50, 1e-5),
-        (90, 5e-7),
-        (110, 1e-7)
+        (epoch_mark_0, 1e-5),
+        (epoch_mark_0 + 6, 1e-4),
+        (epoch_mark_1 - 1, 1e-5),
+        (epoch_mark_1, 7e-6),
+        (epoch_mark_1 + 6, 7e-5),
+        (epoch_mark_2 - 1, 7e-6),
+        (epoch_mark_2, 5e-6),
+        (70, 5e-5),
+        (100, 2e-6),
+        (120, 1e-7),
     ])
 
     optimizer = torch.optim.Adam(net.parameters(), lr=0.1, weight_decay=0.0)
@@ -182,9 +184,15 @@ def main():
             param_group['lr'] = lr
 
         if epoch == epoch_mark_0:
+            print("extending dataset at epoch_mark_0")
             train, test = get_dataset(0, 8192)
 
         if epoch == epoch_mark_1:
+            print("extending dataset at epoch_mark_1")
+            train, test = get_dataset(0, 12288)
+
+        if epoch == epoch_mark_2:
+            print("extending dataset at epoch_mark_2")
             train, test = get_dataset(0, -1)
 
         actual_images_train = None
