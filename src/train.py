@@ -88,21 +88,21 @@ def main():
         mat_arr.resize((inp.shape[0], 9))
         rot_vec_arr = rot.as_rotvec()
 
-        location = inp[:, :3]
-        scale = inp[:, 7:10]
+        # location = inp[:, :3]
+        # scale = inp[:, 7:10]
 
-        cube_points = np.empty((inp.shape[0], 24))
-        for i, point in enumerate(itertools.product([-1, 1], [-1, 1], [-1, 1])):
-            point = np.array(point)
+        # cube_points = np.empty((inp.shape[0], 24))
+        # for i, point in enumerate(itertools.product([-1, 1], [-1, 1], [-1, 1])):
+        #     point = np.array(point)
 
-            point *= scale
-            point = rot.apply(point)
-            point += location
+        #     point *= scale
+        #     point = rot.apply(point)
+        #     point += location
 
-            cube_points[:, i * 3:(i + 1) * 3] = point
+        #     cube_points[:, i * 3:(i + 1) * 3] = point
 
         return np.concatenate(
-            (inp, mat_arr, rot_vec_arr, cube_points), axis=1)
+            (inp, mat_arr, rot_vec_arr), axis=1)
 
     def get_dataset(start_range, end_range):
         return load_dataset(p_path,
