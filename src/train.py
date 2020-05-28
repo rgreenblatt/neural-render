@@ -32,7 +32,7 @@ def main():
     parser.add_argument('--name', required=True)
     parser.add_argument('--norm-style', default='bn')
     parser.add_argument('--max-ch', type=int, default=256)
-    parser.add_argument('--epoches', type=int, default=100)
+    parser.add_argument('--epoches', type=int, default=20)
     parser.add_argument('--no-cudnn-benchmark', action='store_true')
     parser.add_argument('--local_rank', type=int, default=0)
     parser.add_argument('--opt-level', default='O0')
@@ -193,9 +193,9 @@ def main():
     # TODO: make this more configurable
     lr_schedule = PiecewiseLinear([
         (0, 4e-5),
-        (20, 1e-4),
-        (80, 1e-5),
-        (100, 1e-7),
+        (2, 1e-4),
+        (15, 1e-5),
+        (20, 1e-7),
     ])
 
     if not disable_all_output:
