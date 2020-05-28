@@ -134,7 +134,7 @@ def main():
 
     # does the order of these matter???
     if args.distributed and not args.no_sync_bn:
-        net = convert_sync_batchnorm(net)
+        net = convert_syncbn_model(net)
 
     optimizer = torch.optim.Adam(net.parameters(), lr=0.1, weight_decay=0.0)
 
