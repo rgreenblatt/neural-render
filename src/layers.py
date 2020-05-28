@@ -12,18 +12,19 @@ from pydbg import dbg
 
 
 # Simple function to handle groupnorm norm stylization
-def groupnorm(x, norm_style):
+def get_groupnorm_groups(num_ch, norm_style):
     # If number of channels specified in norm_style:
     if 'ch' in norm_style:
         ch = int(norm_style.split('_')[-1])
-        groups = max(int(x.shape[1]) // ch, 1)
+        groups = max(num_ch // ch, 1)
     # If number of groups specified in norm style
     elif 'grp' in norm_style:
         groups = int(norm_style.split('_')[-1])
     # If neither, default to groups = 16
     else:
         groups = 16
-    return F.group_norm(x, groups)
+
+    return groups
 
 
 # From big gan pytorch
@@ -52,36 +53,34 @@ class configurable_norm(nn.Module):
             self.gain = nn.Parameter(torch.Tensor(output_size))
             self.bias = nn.Parameter(torch.Tensor(output_size))
 
-        self.track_running_stats = self.norm_style in ['bn', 'in']
-
-        if self.track_running_stats:
-            self.register_buffer('stored_mean', torch.zeros(output_size))
-            self.register_buffer('stored_var', torch.ones(output_size))
-
         self.reset_parameters()
 
-    def reset_running_stats(self):
-        if self.track_running_stats:
-            self.stored_mean.zero_()
-            self.stored_var.fill_(1)
+        if self.norm_style == 'bn':
+            self.norm = nn.BatchNorm2d(output_size,
+                                       eps=eps,
+                                       momentum=momentum,
+                                       affine=False)
+        elif self.norm_style == 'in':
+            self.norm = nn.InstanceNorm2d(output_size,
+                                          eps=eps,
+                                          momentum=momentum,
+                                          affine=False)
+        elif self.norm_style.startswith('gn'):
+            self.norm = nn.GroupNorm(get_groupnorm_groups(
+                output_size, self.norm_style),
+                                     output_size,
+                                     eps=eps,
+                                     affine=False)
+        elif self.norm_style == 'nonorm':
+            self.norm = lambda x: x
 
     def reset_parameters(self):
-        self.reset_running_stats()
         if not self.input_gain_bias:
             nn.init.ones_(self.gain)
             nn.init.zeros_(self.bias)
 
     def forward(self, x, gain=None, bias=None):
-        if self.norm_style == 'bn':
-            out = F.batch_norm(x, self.stored_mean, self.stored_var, None,
-                               None, self.training, self.momentum, self.eps)
-        elif self.norm_style == 'in':
-            out = F.instance_norm(x, self.stored_mean, self.stored_var, None,
-                                  None, self.training, self.momentum, self.eps)
-        elif self.norm_style.startswith('gn'):
-            out = groupnorm(x, self.norm_style)
-        elif self.norm_style == 'nonorm':
-            out = x
+        out = self.norm(x)
 
         if self.input_gain_bias:
             gain = gain.view(gain.size(0), -1, 1, 1)

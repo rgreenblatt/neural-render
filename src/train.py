@@ -5,6 +5,7 @@ import datetime
 import math
 
 import torch
+from torch import nn
 from torch.utils.tensorboard import SummaryWriter
 import numpy as np
 from torchvision.utils import make_grid
@@ -29,6 +30,16 @@ def main():
     parser.add_argument('--norm-style', default='bn')
     parser.add_argument('--max-ch', type=int, default=256)
     parser.add_argument('--epoches', type=int, default=100)
+    parser.add_argument('--no-cudnn-benchmark', action='store_true')
+    parser.add_argument('--local_rank',
+                        type=int,
+                        default=0)
+    parser.add_argument('--ngpu',
+                        type=int,
+                        default=1)
+    parser.add_argument('--no-sync-bn',
+                        action='store_true',
+                        help='do not use sync bn when running in parallel')
     parser.add_argument('--profile', action='store_true')
     parser.add_argument('--profile-len', type=int, default=4)
     parser.add_argument('--hide-model-info', action='store_true')
@@ -37,8 +48,25 @@ def main():
                         help='disable loading data for profiling')
     args = parser.parse_args()
 
-    torch.backends.cudnn.benchmark = True
-    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    torch.backends.cudnn.benchmark = not args.no_cudnn_benchmark
+
+    if args.ngpu != 1:
+        assert torch.cuda.is_available()
+
+    if args.ngpu != 1:
+        world_size = args.ngpu
+
+        torch.distributed.init_process_group(
+            'nccl',
+            init_method='env://',
+            world_size=world_size,
+            rank=args.local_rank,
+        )
+
+
+
+    device = torch.device("cuda:{}".format(args.local_rank) if torch.cuda.
+                          is_available() else "cpu")
 
     data_path = 'data/'
     p_path = os.path.join(data_path, 'scenes.p')
@@ -82,14 +110,24 @@ def main():
     input_size = 32 # 20, then 32 after process_input
 
     blocks_args, global_args = net_params(input_size=input_size,
-                                          seq_size=512,
+                                          seq_size=256,
                                           initial_attn_ch=64,
                                           output_width=img_width,
                                           max_ch=args.max_ch,
                                           norm_style=args.norm_style,
                                           show_info=not hide_model_info)
 
-    net = Net(blocks_args, global_args).to(device)
+    net = Net(blocks_args, global_args)
+
+    # does the order of these matter???
+    if args.ngpu != 1 and not args.no_sync_bn:
+        net = nn.SyncBatchNorm.convert_sync_batchnorm(net)
+
+    net = net.to(device)
+
+    if args.ngpu != 1:
+        net = nn.parallel.DistributedDataParallel(
+            net, device_ids=[args.local_rank], output_device=args.local_rank)
 
     if not hide_model_info:
         print(net)
