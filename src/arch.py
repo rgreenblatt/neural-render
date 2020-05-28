@@ -121,6 +121,7 @@ class BlockArgs(_BlockArgsParams):
 def net_params(input_size,
                seq_size,
                output_width,
+               initial_attn_ch,
                ch_coefficient=1.0,
                depth_coefficient=1.0,
                start_width=4,
@@ -157,7 +158,6 @@ def net_params(input_size,
 
     ch_before = start_ch
 
-    initial_attn_ch = seq_size // 4
     attn_ch = initial_attn_ch
 
     # TODO: tuning
