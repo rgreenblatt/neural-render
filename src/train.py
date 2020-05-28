@@ -267,7 +267,10 @@ def main():
                     output_images_train = cpu_outputs
 
             loss = criterion(outputs, image)
-            loss.backward()
+
+            with amp.scale_loss(loss, optimizer) as scaled_loss:
+                scaled_loss.backward()
+
             optimizer.step()
 
             train_loss += loss.item()
