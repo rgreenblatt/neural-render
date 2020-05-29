@@ -22,3 +22,6 @@ RUN curl -fsSL -v -o ~/miniconda.sh -O  https://repo.anaconda.com/miniconda/Mini
 RUN /opt/conda/bin/conda install -y pytorch torchvision cudatoolkit=10.1 -c pytorch
 RUN pip install imageio
 RUN imageio_download_bin freeimage
+RUN git clone https://github.com/NVIDIA/apex && cd apex && \
+  pip install -v --no-cache-dir --global-option="--cpp_ext" \
+  --global-option="--cuda_ext" ./
