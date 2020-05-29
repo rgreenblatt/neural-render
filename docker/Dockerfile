@@ -1,9 +1,5 @@
-FROM nvidia/cudagl:10.1-devel-ubuntu18.04
+FROM nvcr.io/nvidia/pytorch:20.03-py3
 
-LABEL Author="Or Fleisher <or.fleisher@nytimes.com>"
-LABEL Title="Blender in Docker"
-
-# Enviorment variables
 ENV DEBIAN_FRONTEND noninteractive
 ENV LC_ALL C.UTF-8
 ENV LANG C.UTF-8
@@ -48,4 +44,19 @@ RUN rm -rf ${BLENDER_PATH}/python/lib/python3.7/site-packages/numpy
 RUN ${BLENDERPY} -m ensurepip && ${BLENDERPIP} install --upgrade pip && ${BLENDERPIP} install numpy tqdm scipy
 
 # Set the working directory
-WORKDIR /
+WORKDIR /root/
+RUN apt-get update && apt-get install -y git
+RUN git clone https://github.com/rgreenblatt/neural-render
+WORKDIR /root/neural-render
+
+RUN apt-get update && apt-get install -y \
+        curl \
+        git \
+        wget \
+        vim \
+        zip \
+        build-essential \
+        git
+
+RUN conda install numpy tensorboard pip scipy
+RUN pip install imageio && imageio_download_bin freeimage
