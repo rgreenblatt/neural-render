@@ -192,10 +192,10 @@ def main():
     # epoch_mark_2 = 60
     # TODO: make this more configurable
     lr_schedule = PiecewiseLinear([
-        (0, 4e-5),
-        (4, 1e-4),
-        (30, 1e-5),
-        (40, 1e-7),
+        (0, 1e-4),
+        (4, 3e-4),
+        (50, 1e-5),
+        (60, 1e-7),
     ])
 
     if not disable_all_output:
