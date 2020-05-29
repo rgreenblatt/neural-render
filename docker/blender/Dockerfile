@@ -1,4 +1,4 @@
-FROM nvidia/cudagl:10.1-base-ubuntu18.04
+FROM nvidia/cudagl:10.1-devel-ubuntu18.04
 
 LABEL Author="Or Fleisher <or.fleisher@nytimes.com>"
 LABEL Title="Blender in Docker"
@@ -7,10 +7,10 @@ LABEL Title="Blender in Docker"
 ENV DEBIAN_FRONTEND noninteractive
 ENV LC_ALL C.UTF-8
 ENV LANG C.UTF-8
-ENV PATH "$PATH:/bin/2.83/python/bin/"
-ENV BLENDER_PATH "/bin/2.83"
-ENV BLENDERPIP "/bin/2.83/python/bin/pip3"
-ENV BLENDERPY "/bin/2.83/python/bin/python3.7m"
+ENV PATH "$PATH:/bin/2.82/python/bin/"
+ENV BLENDER_PATH "/bin/2.82"
+ENV BLENDERPIP "/bin/2.82/python/bin/pip3"
+ENV BLENDERPY "/bin/2.82/python/bin/python3.7m"
 ENV HW="GPU"
 
 # Install dependencies
@@ -29,10 +29,10 @@ RUN apt-get update && apt-get install -y \
 	xz-utils
 
 # Download and install Blender
-RUN wget https://builder.blender.org/download/blender-2.83-8a8c61190b06-linux64.tar.xz \
-	&& tar -xvf blender-2.83-8a8c61190b06-linux64.tar.xz --strip-components=1 -C /bin \ 
-	&& rm -rf blender-2.83-8a8c61190b06-linux64.tar.xz \ 
-	&& rm -rf blender-2.83-8a8c61190b06-linux64
+RUN wget https://mirror.clarkson.edu/blender/release/Blender2.82/blender-2.82-linux64.tar.xz \ 
+	&& tar -xvf blender-2.82-linux64.tar.xz --strip-components=1 -C /bin \ 
+	&& rm -rf blender-2.82-linux64.tar.xz \ 
+	&& rm -rf blender-2.82-linux64 
 
 # Download the Python source since it is not bundled with Blender
 RUN wget https://www.python.org/ftp/python/3.7.7/Python-3.7.7.tgz \ 
