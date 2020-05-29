@@ -35,7 +35,7 @@ def main():
     # parser.add_argument('--epoches', type=int, default=20)
     parser.add_argument('--no-cudnn-benchmark', action='store_true')
     parser.add_argument('--local_rank', type=int, default=0)
-    parser.add_argument('--opt-level', default='O1')
+    parser.add_argument('--opt-level', default='O2')
     parser.add_argument('--no-sync-bn',
                         action='store_true',
                         help='do not use sync bn when running in parallel')
@@ -45,6 +45,9 @@ def main():
     parser.add_argument('--fake-data',
                         action='store_true',
                         help='disable loading data for profiling')
+
+    parser.add_argument('--seq-to-image-tanh', action='store_true')
+
     args = parser.parse_args()
 
     torch.backends.cudnn.benchmark = not args.no_cudnn_benchmark
@@ -123,13 +126,15 @@ def main():
 
     input_size = 56 # 20, then 56 after process_input
 
-    blocks_args, global_args = net_params(input_size=input_size,
-                                          seq_size=256,
-                                          initial_attn_ch=64,
-                                          output_width=img_width,
-                                          max_ch=args.max_ch,
-                                          norm_style=args.norm_style,
-                                          show_info=not hide_model_info)
+    blocks_args, global_args = net_params(
+        input_size=input_size,
+        seq_size=256,
+        initial_attn_ch=64,
+        output_width=img_width,
+        max_ch=args.max_ch,
+        norm_style=args.norm_style,
+        show_info=not hide_model_info,
+        seq_to_image_tanh=args.seq_to_image_tanh)
 
     net = Net(blocks_args, global_args)
 

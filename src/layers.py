@@ -122,7 +122,8 @@ class MultiHeadedSelfAttention(nn.Module):
                  key_size,
                  output_size,
                  n_heads,
-                 query_is_input=False):
+                 query_is_input=False,
+                 use_tanh=False):
         super().__init__()
 
         self.query_is_input = query_is_input
@@ -137,6 +138,12 @@ class MultiHeadedSelfAttention(nn.Module):
             self._proj_c = nn.Linear(input_size, output_size)
 
         self.n_heads = n_heads
+        self.use_tanh = use_tanh
+
+        if use_tanh:
+            self.score_func = torch.tanh
+        else:
+            self.score_func = functools.partial(F.softmax, dim=-1)
 
     def forward(self, x, input_query=None):
         """
@@ -172,8 +179,8 @@ class MultiHeadedSelfAttention(nn.Module):
         # (B, H, S, WK) @ (B, H, WK, S) -> (B, H, S, S)
         scores = q @ k.transpose(-2, -1) / np.sqrt(k.size(-1))
 
-        # (B, H, S, S) -softmax-> (B, H, S, S) (could have dropout)
-        scores = F.softmax(scores, dim=-1)
+        # (B, H, S, S) -softmax/tanh-> (B, H, S, S) (could have dropout)
+        scores = self.score_func(scores)
 
         # (B, H, S, S) @ (B, H, S, WV) -> (B, H, S, WV) -trans-> (B, S, H, WV)
         h = (scores @ v).transpose(1, 2).contiguous()
@@ -267,7 +274,7 @@ class Transformer(nn.Module):
 
 SeqToImageStartCfg = collections.namedtuple(
     'SeqToImageStartCfg',
-    ['start_ch', 'ch_per_head', 'start_width', 'seq_size'])
+    ['start_ch', 'ch_per_head', 'start_width', 'seq_size', 'tanh_attn'])
 
 
 class SeqToImageStart(nn.Module):
@@ -280,28 +287,36 @@ class SeqToImageStart(nn.Module):
         n_heads = self.ch_groups * self.cfg.start_width**2
         output_size = self.cfg.start_width**2 * self.cfg.start_ch
 
-        self._avg_to_key = nn.Linear(self.cfg.seq_size, output_size)
+        # mean, sum, and count
+        feat_size = self.cfg.seq_size * 2 + 1
+
+        self._feat_to_key = nn.Linear(feat_size, output_size)
 
         # I think attn doesn't have a bias, so we use it here
-        self._count_to_output = nn.Linear(1, output_size, bias=True)
+        self._feat_to_output = nn.Linear(feat_size, output_size, bias=True)
 
         self._attn = MultiHeadedSelfAttention(self.cfg.seq_size,
                                               output_size,
                                               output_size,
                                               n_heads,
-                                              query_is_input=True)
+                                              query_is_input=True,
+                                              use_tanh=self.tanh_attn)
 
     def forward(self, x, y=None):
         # Uses average and count to produce reduce_key
         avgs = x.mean(1, keepdim=True)
+        count = x.size(1)
+        total = avgs * count
+        feat = torch.cat(
+            (avgs, total,
+             torch.full(
+                 (x.size(0), 1, 1), count, device=x.device, dtype=x.dtype)),
+            dim=2)
 
-        key = self._avg_to_key(avgs)
+        key = self._feat_to_key(feat)
         attention_output = self._attn(x, key)
-        count_v = self._count_to_output(
-            torch.tensor([x.size(1)], dtype=x.dtype,
-                         device=x.device)).view(1, 1, -1)
 
-        output = attention_output + count_v
+        output = attention_output + self._feat_to_output(feat)
 
         # return as NxCxHxW
         return output.reshape(output.size(0), self.cfg.start_ch,
@@ -500,7 +515,8 @@ class ImageToSeq(nn.Module):
 
 
 SeqToImageCfg = collections.namedtuple(
-    'SeqToImageCfg', ['image_ch', 'seq_size', 'output_ch', 'n_heads'])
+    'SeqToImageCfg', ['image_ch', 'seq_size', 'output_ch', 'n_heads',
+                      'tanh_attn'])
 
 
 class SeqToImage(nn.Module):
@@ -516,7 +532,8 @@ class SeqToImage(nn.Module):
                                               self.cfg.output_ch,
                                               self.cfg.output_ch,
                                               self.cfg.n_heads,
-                                              query_is_input=True)
+                                              query_is_input=True,
+                                              use_tanh=self.cfg.tanh_attn)
 
     # x is seq (B x S x D), y is image type data (B x C x H x W)
     def forward(self, x, y):

@@ -26,7 +26,7 @@ def subset_named_tuple(to_tup, from_tup, **kwargs):
 _GlobalArgParams = collections.namedtuple('GlobalArgsParams', [
     'start_width', 'end_width', 'input_size', 'seq_size',
     'base_transformer_n_heads', 'base_transformer_n_layers', 'nonlocal_index',
-    'start_ch', 'ch_per_head', 'norm_style'
+    'start_ch', 'ch_per_head', 'norm_style', 'seq_to_image_start_tanh'
 ])
 
 
@@ -38,7 +38,9 @@ class GlobalArgs(_GlobalArgParams):
                               hidden_ff_size=self.seq_size * 4)
 
     def seq_to_image_start_args(self):
-        return subset_named_tuple(SeqToImageStartCfg, self)
+        return subset_named_tuple(SeqToImageStartCfg,
+                                  self,
+                                  tanh_attn=self.seq_to_image_start_tanh)
 
 
 # Parameters for each model block
@@ -58,7 +60,8 @@ _BlockArgsParams = collections.namedtuple('BlockArgsParams', [
     'image_n_heads',
     'norm_style',
     'round_by',
-    'show_info'
+    'show_info',
+    'seq_to_image_tanh',
 ])
 
 
@@ -115,7 +118,8 @@ class BlockArgs(_BlockArgsParams):
         return SeqToImageCfg(image_ch=self.output_ch_conv,
                              seq_size=self.seq_size,
                              output_ch=self.attn_output_ch,
-                             n_heads=self.image_n_heads)
+                             n_heads=self.image_n_heads,
+                             tanh_attn=self.seq_to_image_tanh)
 
 
 def net_params(input_size,
@@ -130,6 +134,7 @@ def net_params(input_size,
                start_ch_per_head=32,
                max_ch=512,
                chan_reduce_multiplier=2,
+               seq_to_image_tanh=False,
                norm_style='bn',
                show_info=True):
     """Create BlockArgs and GlobalParams
@@ -202,6 +207,7 @@ def net_params(input_size,
                 # TODO: fix hack
                 round_by=16 if norm_style.startswith('gn') else 1,
                 show_info=show_info,
+                seq_to_image_tanh=seq_to_image_tanh,
             ))
 
         ch_before = ch_after
@@ -217,6 +223,7 @@ def net_params(input_size,
         start_ch=round(start_ch),
         ch_per_head=start_ch_per_head,
         norm_style=norm_style,
+        seq_to_image_start_tanh=seq_to_image_tanh,
     )
 
     return blocks_args, global_args
