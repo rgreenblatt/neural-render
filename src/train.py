@@ -32,7 +32,7 @@ def main():
     parser.add_argument('--name', required=True)
     parser.add_argument('--norm-style', default='bn')
     parser.add_argument('--max-ch', type=int, default=256)
-    parser.add_argument('--epoches', type=int, default=20)
+    # parser.add_argument('--epoches', type=int, default=20)
     parser.add_argument('--no-cudnn-benchmark', action='store_true')
     parser.add_argument('--local_rank', type=int, default=0)
     parser.add_argument('--opt-level', default='O0')
@@ -186,7 +186,7 @@ def main():
         print(to_print)
 
     criterion = torch.nn.MSELoss().to(device)
-    epoches = args.epoches
+    epoches = 60
     # epoch_mark_0 = 20
     # epoch_mark_1 = 40
     # epoch_mark_2 = 60
