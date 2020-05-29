@@ -300,7 +300,7 @@ class SeqToImageStart(nn.Module):
                                               output_size,
                                               n_heads,
                                               query_is_input=True,
-                                              use_tanh=self.tanh_attn)
+                                              use_tanh=self.cfg.tanh_attn)
 
     def forward(self, x, y=None):
         # Uses average and count to produce reduce_key
