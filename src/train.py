@@ -193,9 +193,9 @@ def main():
     # TODO: make this more configurable
     lr_schedule = PiecewiseLinear([
         (0, 4e-5),
-        (2, 1e-4),
-        (15, 1e-5),
-        (20, 1e-7),
+        (4, 1e-4),
+        (30, 1e-5),
+        (40, 1e-7),
     ])
 
     if not disable_all_output:
