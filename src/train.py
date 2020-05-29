@@ -35,7 +35,7 @@ def main():
     # parser.add_argument('--epoches', type=int, default=20)
     parser.add_argument('--no-cudnn-benchmark', action='store_true')
     parser.add_argument('--local_rank', type=int, default=0)
-    parser.add_argument('--opt-level', default='O2')
+    parser.add_argument('--opt-level', default='O1')
     parser.add_argument('--no-sync-bn',
                         action='store_true',
                         help='do not use sync bn when running in parallel')
