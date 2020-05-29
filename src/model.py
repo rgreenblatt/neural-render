@@ -41,9 +41,16 @@ class Net(nn.Module):
             input_ch = block_args.input_ch
             output_ch = block_args.output_ch
 
+            def get_block(constructor, args, use):
+                if use:
+                    return constructor(args)
+                else:
+                    return nn.Identity()
+
             for repeat_num in range(block_args.num_repeat):
                 block_args.next_block()
 
+                # TODO: consider not constructing blocks which aren't used...
                 self._image_blocks.append(
                     MBConvGBlock(block_args.mbconv_args()))
                 self._image_to_seq_blocks.append(
@@ -51,7 +58,8 @@ class Net(nn.Module):
                 self._seq_blocks.append(
                     Transformer(block_args.transformer_args()))
                 self._seq_to_image_blocks.append(
-                    SeqToImage(block_args.seq_to_image_args()))
+                    get_block(SeqToImage, block_args.seq_to_image_args(),
+                              block_args.use_seq_to_image))
 
             if i == self._global_args.nonlocal_index - 1:
                 self._attention_index = len(self._image_blocks) - 1

@@ -72,7 +72,7 @@ class configurable_norm(nn.Module):
                                      eps=eps,
                                      affine=False)
         elif self.norm_style == 'nonorm':
-            self.norm = lambda x: x
+            self.norm = nn.Identity()
 
     def reset_parameters(self):
         if not self.input_gain_bias:

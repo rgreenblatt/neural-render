@@ -47,6 +47,7 @@ def main():
                         help='disable loading data for profiling')
 
     parser.add_argument('--seq-to-image-tanh', action='store_true')
+    parser.add_argument('--disable-seq-to-image', action='store_true')
 
     args = parser.parse_args()
 
@@ -134,7 +135,8 @@ def main():
         max_ch=args.max_ch,
         norm_style=args.norm_style,
         show_info=not hide_model_info,
-        seq_to_image_tanh=args.seq_to_image_tanh)
+        seq_to_image_tanh=args.seq_to_image_tanh,
+        use_seq_to_image=not args.disable_seq_to_image)
 
     net = Net(blocks_args, global_args)
 

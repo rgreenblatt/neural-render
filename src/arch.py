@@ -136,7 +136,8 @@ def net_params(input_size,
                chan_reduce_multiplier=2,
                seq_to_image_tanh=False,
                norm_style='bn',
-               show_info=True):
+               show_info=True,
+               use_seq_to_image=True):
     """Create BlockArgs and GlobalParams
 
     Args:
@@ -208,6 +209,7 @@ def net_params(input_size,
                 round_by=16 if norm_style.startswith('gn') else 1,
                 show_info=show_info,
                 seq_to_image_tanh=seq_to_image_tanh,
+                use_seq_to_image=use_seq_to_image,
             ))
 
         ch_before = ch_after
