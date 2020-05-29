@@ -83,8 +83,10 @@ class BlockArgs(_BlockArgsParams):
             return math.ceil(round(value) / self.round_by) * self.round_by
 
         self.input_ch_conv = round_valid(self.input_ch_this_block)
-        self.output_ch_conv = (round_valid(self.output_ch_this_block) -
-                               round(self.attn_output_ch))
+        self.output_ch_conv = round_valid(self.output_ch_this_block)
+
+        if self.use_seq_to_image:
+            self.output_ch_conv -= round(self.attn_output_ch)
 
         if self.show_info:
             print("block num:", self.block_num)
