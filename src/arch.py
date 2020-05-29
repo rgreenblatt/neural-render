@@ -62,6 +62,7 @@ _BlockArgsParams = collections.namedtuple('BlockArgsParams', [
     'round_by',
     'show_info',
     'seq_to_image_tanh',
+    'use_seq_to_image',
 ])
 
 
