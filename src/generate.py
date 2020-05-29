@@ -92,9 +92,7 @@ def random_scene(num_objects, rotation_scale):
         location = random_location()
         rotation = random_rotation(rotation_scale)
         scale = random_scale(location)
-        # mat_params = random_material()
-        mat_params = np.array(
-            [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0])
+        mat_params = random_material()
 
         spheres.append(np.concatenate((location, rotation, scale, mat_params)))
 
@@ -115,12 +113,11 @@ class DisplayBlenderScene():
     def _display_sphere(self, sphere_params, i):
         bpy.ops.object.select_all(action='DESELECT')
 
-        # bpy.ops.mesh.primitive_uv_sphere_add()
-        bpy.ops.mesh.primitive_cube_add()
+        bpy.ops.mesh.primitive_uv_sphere_add()
 
         # sphere is selected
         bpy.ops.object.editmode_toggle()
-        # bpy.ops.mesh.faces_shade_smooth()
+        bpy.ops.mesh.faces_shade_smooth()
         bpy.ops.object.editmode_toggle()
 
         sphere = bpy.context.selected_objects[0]
@@ -139,10 +136,10 @@ class DisplayBlenderScene():
 
         sphere.data.materials.append(mat)
 
-        # mat.use_nodes = True
-        # mat.node_tree.nodes.new("ShaderNodeBsdfPrincipled")
-        # self._set_material(sphere_params[10:],
-        #                    mat.node_tree.nodes["Principled BSDF"])
+        mat.use_nodes = True
+        mat.node_tree.nodes.new("ShaderNodeBsdfPrincipled")
+        self._set_material(sphere_params[10:],
+                           mat.node_tree.nodes["Principled BSDF"])
 
         return sphere, mat
 
