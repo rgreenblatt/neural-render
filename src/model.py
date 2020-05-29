@@ -45,7 +45,7 @@ class Net(nn.Module):
                 if use:
                     return constructor(args)
                 else:
-                    return nn.Identity()
+                    return None
 
             for repeat_num in range(block_args.num_repeat):
                 block_args.next_block()
@@ -123,7 +123,8 @@ class Net(nn.Module):
             image = image_b(image, position_ch)
             # seq = image_to_seq_b(seq, image)
             # seq = seq_b(seq)
-            image = seq_to_image_b(seq, image)
+            if seq_to_image_b is not None:
+                image = seq_to_image_b(seq, image)
 
         image = self.output_bn(image)
         image = self._swish(image)
