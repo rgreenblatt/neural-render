@@ -18,6 +18,7 @@ from model import Net
 from load_data import load_dataset
 from arch import net_params
 from utils import mkdirs, PiecewiseLinear, linear_to_srgb
+from criterion import PerceptualLoss
 
 
 def main():
@@ -48,6 +49,8 @@ def main():
 
     parser.add_argument('--seq-to-image-tanh', action='store_true')
     parser.add_argument('--disable-seq-to-image', action='store_true')
+    parser.add_argument('--perceptual-loss', action='store_true')
+    parser.add_argument('--output-exp', action='store_true')
 
     args = parser.parse_args()
 
@@ -136,7 +139,8 @@ def main():
         norm_style=args.norm_style,
         show_info=not hide_model_info,
         seq_to_image_tanh=args.seq_to_image_tanh,
-        use_seq_to_image=not args.disable_seq_to_image)
+        use_seq_to_image=not args.disable_seq_to_image,
+        output_exp=output_exp)
 
     net = Net(blocks_args, global_args)
 
@@ -192,7 +196,11 @@ def main():
         total, to_print = recursive_param_print(net)
         print(to_print)
 
-    criterion = torch.nn.MSELoss().to(device)
+    if args.perceptual_loss:
+        criterion = PerceptualLoss().to(device)
+    else:
+        criterion = torch.nn.MSELoss().to(device)
+
     epoches = 60
     # epoch_mark_0 = 20
     # epoch_mark_1 = 40

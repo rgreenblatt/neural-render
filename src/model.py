@@ -75,7 +75,14 @@ class Net(nn.Module):
                                      out_channels,
                                      kernel_size=3,
                                      padding=1)
-        self._output_activation = nn.CELU(alpha=0.05)
+
+        negative_allowance = 0.05
+
+        if self._global_args.output_exp:
+            self._output_activation = lambda x: torch.exp(
+                x) - negative_allowance
+        else:
+            self._output_activation = nn.CELU(alpha=negative_allowance)
 
     def set_swish(self, memory_efficient=True):
         """Sets swish function as memory efficient (for training) or standard (for export).
@@ -129,6 +136,7 @@ class Net(nn.Module):
         image = self.output_bn(image)
         image = self._swish(image)
         image = self.output_conv(image)
-        image = self._output_activation(image)  # seems like a reasonable choice, but...
+        image = self._output_activation(
+            image)  # seems like a reasonable choice, but...
 
         return image
