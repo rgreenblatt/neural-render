@@ -19,3 +19,11 @@ Values can get pretty high now, consider switching loss function to something
 more "perceptual"
 (maybe something like smooth L1 loss scaled by the value of the image + 1?)
 Also, consider switching to exp(x) from celu(x) as output activation
+
+2020-05-30 01:31
+
+Using a more perceptual loss function worked well based on visual inspection
+(see perceptual_loss run). Using an exp function at the output performed
+very poorly (see use_exp). After starting up a big run using tanh, I
+switched from tanh to not using tanh base on preliminary results
+(see big_run_no_tanh and big_run).
