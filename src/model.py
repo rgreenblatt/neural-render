@@ -128,7 +128,7 @@ class Net(nn.Module):
 
             if self._global_args.checkpoint_conv:
                 image = torch.utils.checkpoint.checkpoint(
-                    image_b, image, position_ch)
+                    image_b, image, position_ch[image.size(2)])
             else:
                 image = image_b(image, position_ch)
 

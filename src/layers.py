@@ -438,7 +438,7 @@ class MBConvGBlock(nn.Module):
         x = self._swish(x)
 
         if self.cfg.show_position:
-            expanded_pos = position_ch[x.size(2)].expand(x.size(0), -1, -1, -1)
+            expanded_pos = position_ch.expand(x.size(0), -1, -1, -1)
 
             x = torch.cat((x, expanded_pos), dim=1)
 
