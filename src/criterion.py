@@ -4,6 +4,8 @@ from torch import nn
 
 class PerceptualLoss(nn.Module):
     def __init__(self):
+        super().__init__()
+
         self.l1 = nn.SmoothL1Loss(reduction='none')
 
     def forward(self, inp, target):
