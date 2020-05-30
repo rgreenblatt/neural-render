@@ -56,7 +56,7 @@ class RenderedDataset(torch.utils.data.Dataset):
 
     def __len__(self):
         if self.fake_data:
-            return 4096 # TODO: make configurable
+            return 65536 # TODO: make configurable
         else:
             return len(self.data)
 
