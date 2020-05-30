@@ -26,7 +26,7 @@ def subset_named_tuple(to_tup, from_tup, **kwargs):
 _GlobalArgParams = collections.namedtuple('GlobalArgsParams', [
     'start_width', 'end_width', 'input_size', 'seq_size',
     'base_transformer_n_heads', 'base_transformer_n_layers', 'nonlocal_index',
-    'start_ch', 'ch_per_head', 'norm_style'
+    'start_ch', 'ch_per_head', 'norm_style', 'checkpoint_conv'
 ])
 
 
@@ -153,7 +153,8 @@ def net_params(input_size,
                show_info=True,
                use_seq_to_image=True,
                use_image_to_seq=False,
-               use_seq_block=False):
+               use_seq_block=False,
+               checkpoint_conv=False):
     """Create BlockArgs and GlobalParams
 
     Args:
@@ -238,6 +239,7 @@ def net_params(input_size,
         start_ch=round(start_ch),
         ch_per_head=start_ch_per_head,
         norm_style=norm_style,
+        checkpoint_conv=checkpoint_conv,
     )
 
     return blocks_args, global_args

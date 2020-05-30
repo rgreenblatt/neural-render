@@ -50,6 +50,7 @@ def main():
     parser.add_argument('--disable-seq-to-image', action='store_true')
     parser.add_argument('--no-perceptual-loss', action='store_true')
     parser.add_argument('--improve-seq', action='store_true')
+    parser.add_argument('--checkpoint-conv', action='store_true')
 
     args = parser.parse_args()
 
@@ -140,6 +141,7 @@ def main():
         use_seq_to_image=not args.disable_seq_to_image,
         use_image_to_seq=args.improve_seq,
         use_seq_block=args.improve_seq,
+        checkpoint_conv=args.checkpoint_conv
     )
 
     net = Net(blocks_args, global_args)
