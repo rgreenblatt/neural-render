@@ -98,7 +98,7 @@ class BlockArgs(_BlockArgsParams):
         self.input_ch_conv = round_valid(self.input_ch_this_block)
         self.output_ch_conv = round_valid(self.output_ch_this_block)
 
-        if self.use_seq_to_image:
+        if self.use_seq_to_image_this_block:
             self.output_ch_conv -= round(self.attn_output_ch)
 
         if self.show_info:

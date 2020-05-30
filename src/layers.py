@@ -132,7 +132,7 @@ def width_to_seq(x):
 # expects N x H * W x C returns NCHW
 # for now assume H == W
 def seq_to_width(x, width):
-    return NCHW_to_NHWC(x.view(x.size(0), width, width, -1))
+    return NHWC_to_NCHW(x.view(x.size(0), width, width, -1))
 
 
 class MultiHeadedSelfAttention(nn.Module):
@@ -534,9 +534,6 @@ class ImageToSeq(nn.Module):
 
         # (B, H, S, H*W) -> (B, H, 1, 1)
         pooled_scores = self._pool(scores)
-
-        assert scores.size(2) == 1
-        assert scores.size(3) == 1
 
         overall_weight = torch.sigmoid(pooled_scores * self._overall_gain +
                                        self._overall_bias)

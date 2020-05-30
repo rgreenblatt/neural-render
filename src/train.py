@@ -48,7 +48,7 @@ def main():
                         help='disable loading data for profiling')
 
     parser.add_argument('--disable-seq-to-image', action='store_true')
-    parser.add_argument('--perceptual-loss', action='store_true')
+    parser.add_argument('--no-perceptual-loss', action='store_true')
     parser.add_argument('--improve-seq', action='store_true')
 
     args = parser.parse_args()
@@ -132,7 +132,7 @@ def main():
     blocks_args, global_args = net_params(
         input_size=input_size,
         seq_size=512,
-        initial_attn_ch=64,
+        initial_attn_ch=128,
         output_width=img_width,
         max_ch=args.max_ch,
         norm_style=args.norm_style,
@@ -196,10 +196,10 @@ def main():
         total, to_print = recursive_param_print(net)
         print(to_print)
 
-    if args.perceptual_loss:
-        criterion = PerceptualLoss().to(device)
-    else:
+    if args.no_perceptual_loss:
         criterion = torch.nn.MSELoss().to(device)
+    else:
+        criterion = PerceptualLoss().to(device)
 
     epoches = 100
     # epoch_mark_0 = 20
