@@ -55,7 +55,10 @@ class RenderedDataset(torch.utils.data.Dataset):
         return sample
 
     def __len__(self):
-        return len(self.data)
+        if self.fake_data:
+            return 4096 # TODO: make configurable
+        else:
+            return len(self.data)
 
 
 class ToTensor(object):
