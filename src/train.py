@@ -203,7 +203,7 @@ def main():
     else:
         criterion = PerceptualLoss().to(device)
 
-    epoches = 100
+    epoches = 50
     # epoch_mark_0 = 20
     # epoch_mark_1 = 40
     # epoch_mark_2 = 60
@@ -211,8 +211,8 @@ def main():
     lr_schedule = PiecewiseLinear([
         (0, 5e-5),
         (4, 1e-4),
-        (70, 5e-6),
-        (100, 1e-7),
+        (35, 5e-6),
+        (50, 1e-7),
     ])
 
     if not disable_all_output:
