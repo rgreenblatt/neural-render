@@ -28,9 +28,12 @@ very poorly (see use_exp). After starting up a big run using tanh, I
 switched from tanh to not using tanh base on preliminary results
 (see big_run_no_tanh and big_run).
 
-To try:
+To try/TODO:
  - better strategies for attention
  - "intersection" modules/activation
  - reintroduce image_to_seq 
  - reintroduce transformers on sequence throughout
  - "interlace" or occasionally use the previous two to avoid delays.
+ - Tune lr better for new loss function 
+ - MOAR data???? 
+ - 4x4 is worse than it should be - better start block?
