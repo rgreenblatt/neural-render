@@ -21,8 +21,9 @@ def write_exr(path, img):
 class RenderedDataset(torch.utils.data.Dataset):
     def __init__(self, p_path, img_path, resolution, transform, fake_data,
                  process_input, start_range, end_range):
-        with open(p_path, "rb") as f:
-            self.data = pickle.load(f)[start_range:end_range]
+        if not fake_data:
+            with open(p_path, "rb") as f:
+                self.data = pickle.load(f)[start_range:end_range]
         self.img_path = img_path
         self.transform = transform
         self.resolution = resolution
@@ -32,6 +33,7 @@ class RenderedDataset(torch.utils.data.Dataset):
     def __getitem__(self, index):
         if self.fake_data:
             image = np.zeros((self.resolution, self.resolution, 3))
+            inp = np.zeros((1, 20)) # TODO: fix hardcoded size...
         else:
             image = load_exr(
                 os.path.join(self.img_path, "img_{}.exr".format(index)))
@@ -41,7 +43,9 @@ class RenderedDataset(torch.utils.data.Dataset):
             if image.shape[0] != self.resolution:
                 image = resize(image, self.resolution)
 
-        inp = self.process_input(self.data[index])
+            inp = self.data[index]
+
+        inp = self.process_input(inp)
 
         sample = {'image': image, 'inp': inp}
 
