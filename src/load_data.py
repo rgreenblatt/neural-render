@@ -92,6 +92,7 @@ class SubsetGroupedSampler(torch.utils.data.sampler.Sampler):
     def __len__(self):
         return len(self.indices) * self.group_size
 
+
 class SubsetGroupedRandomDistributedSampler(torch.utils.data.sampler.Sampler):
     r"""Samples elements randomly from a given list of indices, without
     replacement ensuring groups remain together.
@@ -129,7 +130,6 @@ class SubsetGroupedRandomDistributedSampler(torch.utils.data.sampler.Sampler):
             indices = torch.randperm(len(self.indices), generator=g).tolist()
         else:
             indices = list(range(len(self.indices)))
-
 
         # add extra samples to make it evenly divisible
         indices += indices[:(self.total_size - len(indices))]

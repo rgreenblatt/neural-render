@@ -128,7 +128,7 @@ def main():
                             num_replicas=args.world_size,
                             rank=args.local_rank)
 
-    input_size = 56 # 20, then 56 after process_input
+    input_size = 56  # 20, then 56 after process_input
 
     blocks_args, global_args = net_params(
         input_size=input_size,
@@ -140,7 +140,8 @@ def main():
         show_info=not hide_model_info,
         seq_to_image_tanh=args.seq_to_image_tanh,
         use_seq_to_image=not args.disable_seq_to_image,
-        output_exp=output_exp)
+        output_exp=args.output_exp,
+    )
 
     net = Net(blocks_args, global_args)
 

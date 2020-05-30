@@ -80,6 +80,7 @@ class BlockArgs(_BlockArgsParams):
         self.input_ch_this_block = self.output_ch_this_block
         self.output_ch_this_block = (self.input_ch_this_block +
                                      self.ch_per_block)
+
         def round_valid(value):
             return math.ceil(round(value) / self.round_by) * self.round_by
 
@@ -179,10 +180,8 @@ def net_params(input_size,
             ch_after = ch_before / chan_reduce_multiplier
             attn_ch /= chan_reduce_multiplier
 
-
         input_ch = round(ch_before)
         output_ch = round(ch_after)
-
 
         if show_info:
             print("Layer {} input ch: {}, output ch: {}, attn ch: {}".format(

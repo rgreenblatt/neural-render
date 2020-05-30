@@ -187,7 +187,6 @@ class MultiHeadedSelfAttention(nn.Module):
         # -merge-> (B, S, D)
         out = merge_last(h, 2)
 
-
         if not self.query_is_input:
             out = out + c
 
@@ -238,6 +237,7 @@ class LayerNorm(nn.Module):
 TransformerCfg = collections.namedtuple(
     'TransformerCfg', ['size', 'n_heads', 'n_layers', 'hidden_ff_size'])
 
+
 class Transformer(nn.Module):
     """ Transformer with Self-Attentive Blocks and parameter sharing"""
     def __init__(self, cfg):
@@ -271,6 +271,7 @@ class Transformer(nn.Module):
         """
 
         self._pwff.set_swish(memory_efficient)
+
 
 SeqToImageStartCfg = collections.namedtuple(
     'SeqToImageStartCfg',
@@ -464,8 +465,8 @@ class MBConvGBlock(nn.Module):
         self._swish = MemoryEfficientSwish() if memory_efficient else Swish()
 
 
-ImageToSeqCfg = collections.namedtuple(
-    'ImageToSeqCfg', ['image_ch', 'seq_size', 'n_heads'])
+ImageToSeqCfg = collections.namedtuple('ImageToSeqCfg',
+                                       ['image_ch', 'seq_size', 'n_heads'])
 
 
 class ImageToSeq(nn.Module):
@@ -499,7 +500,6 @@ class ImageToSeq(nn.Module):
         # (B, S, H, W) -transpose-> (B, H, S, W)
         x, q, k, v = (x.transpose(1, 2) for x in [x, q, k, v])
 
-
         # (B, H, S, WK) @ (B, H, WK, 1) -> (B, H, S, 1)
         scores = (q @ k.transpose(-2, -1))
         scores = torch.sigmoid(scores)
@@ -515,8 +515,8 @@ class ImageToSeq(nn.Module):
 
 
 SeqToImageCfg = collections.namedtuple(
-    'SeqToImageCfg', ['image_ch', 'seq_size', 'output_ch', 'n_heads',
-                      'tanh_attn'])
+    'SeqToImageCfg',
+    ['image_ch', 'seq_size', 'output_ch', 'n_heads', 'tanh_attn'])
 
 
 class SeqToImage(nn.Module):

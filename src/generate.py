@@ -47,7 +47,7 @@ def random_location():
 
 
 def random_rotation(scale=1.0):
-    quat = R.from_rotvec(R.random().as_rotvec()*scale).as_quat()
+    quat = R.from_rotvec(R.random().as_rotvec() * scale).as_quat()
 
     # switch (X, Y, Z, W) to (W, X, Y, Z)
     return np.concatenate((quat[3:], quat[:3]))

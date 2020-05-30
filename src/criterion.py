@@ -1,6 +1,7 @@
 import torch
 from torch import nn
 
+
 class PerceptualLoss(nn.Module):
     def __init__(self):
         self.l1 = nn.SmoothL1Loss(reduction='none')
