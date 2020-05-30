@@ -285,7 +285,7 @@ class SeqToImageStart(nn.Module):
         self.cfg = cfg
 
         self.ch_groups = self.cfg.start_ch // self.cfg.ch_per_head
-        n_heads = self.ch_groups * self.cfg.start_width**2
+        n_heads = self.ch_groups
         output_size = self.cfg.start_width**2 * self.cfg.start_ch
 
         # mean, sum, and count
@@ -297,8 +297,8 @@ class SeqToImageStart(nn.Module):
         self._feat_to_output = nn.Linear(feat_size, output_size, bias=True)
 
         self._attn = MultiHeadedSelfAttention(self.cfg.seq_size,
-                                              output_size,
-                                              output_size,
+                                              self.cfg.start_ch,
+                                              self.cfg.start_ch,
                                               n_heads,
                                               query_is_input=True,
                                               use_tanh=self.cfg.tanh_attn)
@@ -314,10 +314,16 @@ class SeqToImageStart(nn.Module):
                  (x.size(0), 1, 1), count, device=x.device, dtype=x.dtype)),
             dim=2)
 
-        query = self._feat_to_query(feat)
+        output_shape = (feat.size(0), self.cfg.start_width**2,
+                        self.cfg.start_ch)
+
+        query = self._feat_to_query(feat).view(*output_shape)
         attention_output = self._attn(x, query)
 
-        output = attention_output + self._feat_to_output(feat)
+        output = attention_output + self._feat_to_output(feat).view(
+            *output_shape)
+        # NxW**2xC -> NxCxW**2
+        output = output.permute(0, 2, 1)
 
         # return as NxCxHxW
         return output.reshape(output.size(0), self.cfg.start_ch,
