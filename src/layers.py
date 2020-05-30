@@ -291,7 +291,7 @@ class SeqToImageStart(nn.Module):
         # mean, sum, and count
         feat_size = self.cfg.seq_size * 2 + 1
 
-        self._feat_to_key = nn.Linear(feat_size, output_size)
+        self._feat_to_query = nn.Linear(feat_size, output_size)
 
         # I think attn doesn't have a bias, so we use it here
         self._feat_to_output = nn.Linear(feat_size, output_size, bias=True)
@@ -304,7 +304,7 @@ class SeqToImageStart(nn.Module):
                                               use_tanh=self.cfg.tanh_attn)
 
     def forward(self, x, y=None):
-        # Uses average and count to produce reduce_key
+        # Uses average and count to produce query
         avgs = x.mean(1, keepdim=True)
         count = x.size(1)
         total = avgs * count
@@ -314,8 +314,8 @@ class SeqToImageStart(nn.Module):
                  (x.size(0), 1, 1), count, device=x.device, dtype=x.dtype)),
             dim=2)
 
-        key = self._feat_to_key(feat)
-        attention_output = self._attn(x, key)
+        query = self._feat_to_query(feat)
+        attention_output = self._attn(x, query)
 
         output = attention_output + self._feat_to_output(feat)
 
