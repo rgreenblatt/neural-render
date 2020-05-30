@@ -74,11 +74,9 @@ def get_position_ch(min_width, max_width, dtype, device):
     out = {}
     for i in range(int(math.log2(min_width)), int(math.log2(max_width)) + 1):
         width = 2**i
-        linear = torch.linspace(0.0,
-                                1.0,
-                                steps=width,
-                                dtype=dtype,
-                                device=device).view(width, 1)
+        linear = torch.linspace(0.0, 1.0,
+                                steps=width).type(dtype).to(device).view(
+                                    width, 1)
         x_ch = linear.expand(width, width)
         y_ch = linear.view(1, width).expand(width, width)
         out[width] = torch.cat(
