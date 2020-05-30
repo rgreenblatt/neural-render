@@ -126,11 +126,13 @@ class Net(nn.Module):
         for i, blocks in enumerate(zip(*all_blocks)):
             (image_b, image_to_seq_b, seq_b, seq_to_image_b) = blocks
 
+            this_position_ch = position_ch[image.size(2)]
+
             if self._global_args.checkpoint_conv:
                 image = torch.utils.checkpoint.checkpoint(
-                    image_b, image, position_ch[image.size(2)])
+                    image_b, image, this_position_ch)
             else:
-                image = image_b(image, position_ch)
+                image = image_b(image, this_position_ch)
 
             if image_to_seq_b is not None:
                 seq = image_to_seq_b(seq, image)
