@@ -47,10 +47,9 @@ def main():
                         action='store_true',
                         help='disable loading data for profiling')
 
-    parser.add_argument('--seq-to-image-tanh', action='store_true')
     parser.add_argument('--disable-seq-to-image', action='store_true')
     parser.add_argument('--perceptual-loss', action='store_true')
-    parser.add_argument('--output-exp', action='store_true')
+    parser.add_argument('--improve-seq', action='store_true')
 
     args = parser.parse_args()
 
@@ -138,9 +137,9 @@ def main():
         max_ch=args.max_ch,
         norm_style=args.norm_style,
         show_info=not hide_model_info,
-        seq_to_image_tanh=args.seq_to_image_tanh,
         use_seq_to_image=not args.disable_seq_to_image,
-        output_exp=args.output_exp,
+        use_image_to_seq=args.improve_seq,
+        use_seq_block=args.improve_seq,
     )
 
     net = Net(blocks_args, global_args)

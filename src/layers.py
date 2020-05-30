@@ -56,6 +56,7 @@ class configurable_norm(nn.Module):
         self.reset_parameters()
 
         if self.norm_style == 'bn':
+            # sync bn will be used if distributed (see train.py)
             self.norm = nn.BatchNorm2d(output_size,
                                        eps=eps,
                                        momentum=momentum,
@@ -115,6 +116,25 @@ def merge_last(x, n_dims):
     return x.view(*s[:-n_dims], -1)
 
 
+def NCHW_to_NHWC(x):
+    return x.permute(0, 2, 3, 1)
+
+
+def NHWC_to_NCHW(x):
+    return x.permute(0, 3, 1, 2)
+
+
+# expects NCHW returns N x H * W x C
+def width_to_seq(x):
+    return NCHW_to_NHWC(x).view(x.size(0), x.size(2) * x.size(3), x.size(1))
+
+
+# expects N x H * W x C returns NCHW
+# for now assume H == W
+def seq_to_width(x, width):
+    return NCHW_to_NHWC(x.view(x.size(0), width, width, -1))
+
+
 class MultiHeadedSelfAttention(nn.Module):
     """ Multi-Headed Dot Product Attention """
     def __init__(self,
@@ -122,8 +142,7 @@ class MultiHeadedSelfAttention(nn.Module):
                  key_size,
                  output_size,
                  n_heads,
-                 query_is_input=False,
-                 use_tanh=False):
+                 query_is_input=False):
         super().__init__()
 
         self.query_is_input = query_is_input
@@ -138,12 +157,6 @@ class MultiHeadedSelfAttention(nn.Module):
             self._proj_c = nn.Linear(input_size, output_size)
 
         self.n_heads = n_heads
-        self.use_tanh = use_tanh
-
-        if use_tanh:
-            self.score_func = torch.tanh
-        else:
-            self.score_func = functools.partial(F.softmax, dim=-1)
 
     def forward(self, x, input_query=None):
         """
@@ -177,10 +190,10 @@ class MultiHeadedSelfAttention(nn.Module):
         q, k, v = (x.transpose(1, 2) for x in [q, k, v])
 
         # (B, H, S, WK) @ (B, H, WK, S) -> (B, H, S, S)
-        scores = q @ k.transpose(-2, -1) / np.sqrt(k.size(-1))
+        scores = (q @ k.transpose(-2, -1)) / np.sqrt(k.size(-1))
 
-        # (B, H, S, S) -softmax/tanh-> (B, H, S, S) (could have dropout)
-        scores = self.score_func(scores)
+        # (B, H, S, S) -softmax-> (B, H, S, S) (could have dropout)
+        scores = F.softmax(scores, dim=-1)
 
         # (B, H, S, S) @ (B, H, S, WV) -> (B, H, S, WV) -trans-> (B, S, H, WV)
         h = (scores @ v).transpose(1, 2).contiguous()
@@ -275,7 +288,7 @@ class Transformer(nn.Module):
 
 SeqToImageStartCfg = collections.namedtuple(
     'SeqToImageStartCfg',
-    ['start_ch', 'ch_per_head', 'start_width', 'seq_size', 'tanh_attn'])
+    ['start_ch', 'ch_per_head', 'start_width', 'seq_size'])
 
 
 class SeqToImageStart(nn.Module):
@@ -300,8 +313,7 @@ class SeqToImageStart(nn.Module):
                                               self.cfg.start_ch,
                                               self.cfg.start_ch,
                                               n_heads,
-                                              query_is_input=True,
-                                              use_tanh=self.cfg.tanh_attn)
+                                              query_is_input=True)
 
     def forward(self, x, y=None):
         # Uses average and count to produce query
@@ -322,12 +334,9 @@ class SeqToImageStart(nn.Module):
 
         output = attention_output + self._feat_to_output(feat).view(
             *output_shape)
-        # NxW**2xC -> NxCxW**2
-        output = output.permute(0, 2, 1)
 
         # return as NxCxHxW
-        return output.reshape(output.size(0), self.cfg.start_ch,
-                              self.cfg.start_width, self.cfg.start_width)
+        return seq_to_width(output, self.cfg.start_width)
 
 
 MBConvCfg = collections.namedtuple('MBConvCfg', [
@@ -481,20 +490,34 @@ class ImageToSeq(nn.Module):
 
         self.cfg = cfg
 
-        # roughly, this layer is 2 element multi headed attention
         self._pool = nn.AdaptiveMaxPool2d(1)
-        self._proj_k = nn.Linear(self.cfg.image_ch, self.cfg.seq_size)
-        self._proj_v = nn.Linear(self.cfg.image_ch, self.cfg.seq_size)
+
+        # roughly, this layer is multi headed attention with a weight
+        self._proj_k = nn.Conv2d(self.cfg.image_ch,
+                                 self.cfg.seq_size,
+                                 kernel_size=1)
+        self._proj_v = nn.Conv2d(self.cfg.image_ch,
+                                 self.cfg.seq_size,
+                                 kernel_size=1)
+
         self._proj_q = nn.Linear(self.cfg.seq_size, self.cfg.seq_size)
+
+        self._overall_gain = nn.Parameter(
+            torch.Tensor(1, self.cfg.n_heads, 1, 1))
+        self._overall_bias = nn.Parameter(
+            torch.Tensor(1, self.cfg.n_heads, 1, 1))
+
+        self.reset_parameters()
+
+    def reset_parameters(self):
+        nn.init.ones_(self._overall_gain)
+        nn.init.zeros_(self._overall_bias)
 
     # x is seq (BS x D), y is image type data (B x C x H x W)
     def forward(self, x, y):
-        # (B x C x H x W) -pool-> (B x C)
-        pooled = self._pool(y).view(y.size(0), -1)
-
-        # (B x C) -proj-> (B x D) -unsqueeze-> (B x 1 x D)
-        k = self._proj_k(pooled)[:, None]
-        v = self._proj_v(pooled)[:, None]
+        # NCHW -> N x H*W x C
+        k = width_to_seq(self._proj_k(y))
+        v = width_to_seq(self._proj_v(y))
 
         # (B x S x D) -proj-> (B x S x D)
         q = self._proj_q(x)
@@ -506,11 +529,22 @@ class ImageToSeq(nn.Module):
         # (B, S, H, W) -transpose-> (B, H, S, W)
         x, q, k, v = (x.transpose(1, 2) for x in [x, q, k, v])
 
-        # (B, H, S, WK) @ (B, H, WK, 1) -> (B, H, S, 1)
-        scores = (q @ k.transpose(-2, -1))
-        scores = torch.sigmoid(scores)
+        # (B, H, S, WK) @ (B, H, WK, H*W) -> (B, H, S, H*W)
+        scores = (q @ k.transpose(-2, -1)) / np.sqrt(k.size(-1))
 
-        out = x * (1 - scores) + v * scores
+        # (B, H, S, H*W) -> (B, H, 1, 1)
+        pooled_scores = self._pool(scores)
+
+        assert scores.size(2) == 1
+        assert scores.size(3) == 1
+
+        overall_weight = torch.sigmoid(pooled_scores * self._overall_gain +
+                                       self._overall_bias)
+        scores = F.softmax(scores, dim=-1)
+        h = scores @ v
+
+        # *(1 - overall_weight) probably not important - maybe even bad
+        out = x * (1 - overall_weight) + h * overall_weight
 
         # (B, H, S, WV) -trans-> (B, S, H, WV)
         out = out.transpose(1, 2).contiguous()
@@ -521,8 +555,7 @@ class ImageToSeq(nn.Module):
 
 
 SeqToImageCfg = collections.namedtuple(
-    'SeqToImageCfg',
-    ['image_ch', 'seq_size', 'output_ch', 'n_heads', 'tanh_attn'])
+    'SeqToImageCfg', ['image_ch', 'seq_size', 'output_ch', 'n_heads'])
 
 
 class SeqToImage(nn.Module):
@@ -531,19 +564,18 @@ class SeqToImage(nn.Module):
 
         self.cfg = cfg
 
-        self._proj_k = nn.Conv2d(self.cfg.image_ch,
+        self._proj_q = nn.Conv2d(self.cfg.image_ch,
                                  self.cfg.output_ch,
                                  kernel_size=1)
         self._attn = MultiHeadedSelfAttention(self.cfg.seq_size,
                                               self.cfg.output_ch,
                                               self.cfg.output_ch,
                                               self.cfg.n_heads,
-                                              query_is_input=True,
-                                              use_tanh=self.cfg.tanh_attn)
+                                              query_is_input=True)
 
     # x is seq (B x S x D), y is image type data (B x C x H x W)
     def forward(self, x, y):
-        k = self._proj_k(y)
+        q = self._proj_q(y)
 
         batch_size = y.size(0)
         height = y.size(2)
@@ -551,13 +583,13 @@ class SeqToImage(nn.Module):
         image_size = height * width
 
         # to NHWC
-        k = k.permute(0, 2, 3, 1)
+        q = q.permute(0, 2, 3, 1)
 
-        k = k.view(batch_size, image_size, -1)
+        q = q.view(batch_size, image_size, -1)
 
         # attention is applied elementwise to "pixels" (similar to global
         # attention from AttnNet - just implementation differences)
-        added_values = self._attn(x, k)
+        added_values = self._attn(x, q)
         added_values = added_values.permute(0, 2, 1)
         added_values = added_values.view(batch_size, -1, height, width)
 

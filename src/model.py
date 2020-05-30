@@ -54,12 +54,14 @@ class Net(nn.Module):
                 self._image_blocks.append(
                     MBConvGBlock(block_args.mbconv_args()))
                 self._image_to_seq_blocks.append(
-                    ImageToSeq(block_args.image_to_seq_args()))
+                    get_block(ImageToSeq, block_args.image_to_seq_args(),
+                              block_args.use_image_to_seq_this_block))
                 self._seq_blocks.append(
-                    Transformer(block_args.transformer_args()))
+                    get_block(Transformer, block_args.transformer_args(),
+                              block_args.use_seq_this_block))
                 self._seq_to_image_blocks.append(
                     get_block(SeqToImage, block_args.seq_to_image_args(),
-                              block_args.use_seq_to_image))
+                              block_args.use_seq_to_image_this_block))
 
             if i == self._global_args.nonlocal_index - 1:
                 self._attention_index = len(self._image_blocks) - 1
@@ -78,11 +80,7 @@ class Net(nn.Module):
 
         negative_allowance = 0.05
 
-        if self._global_args.output_exp:
-            self._output_activation = lambda x: torch.exp(
-                x) - negative_allowance
-        else:
-            self._output_activation = nn.CELU(alpha=negative_allowance)
+        self._output_activation = nn.CELU(alpha=negative_allowance)
 
     def set_swish(self, memory_efficient=True):
         """Sets swish function as memory efficient (for training) or standard (for export).
@@ -128,8 +126,10 @@ class Net(nn.Module):
         for i, blocks in enumerate(zip(*all_blocks)):
             (image_b, image_to_seq_b, seq_b, seq_to_image_b) = blocks
             image = image_b(image, position_ch)
-            # seq = image_to_seq_b(seq, image)
-            # seq = seq_b(seq)
+            if image_to_seq_b is not None:
+                seq = image_to_seq_b(seq, image)
+            if seq_b is not None:
+                seq = seq_b(seq)
             if seq_to_image_b is not None:
                 image = seq_to_image_b(seq, image)
 
