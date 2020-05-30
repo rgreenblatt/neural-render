@@ -33,7 +33,7 @@ class RenderedDataset(torch.utils.data.Dataset):
     def __getitem__(self, index):
         if self.fake_data:
             image = np.zeros((self.resolution, self.resolution, 3))
-            inp = np.zeros((1, 20)) # TODO: fix hardcoded size...
+            inp = np.ones((1, 20)) # TODO: fix hardcoded size...
         else:
             image = load_exr(
                 os.path.join(self.img_path, "img_{}.exr".format(index)))
