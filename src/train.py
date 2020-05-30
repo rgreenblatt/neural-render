@@ -202,7 +202,7 @@ def main():
     else:
         criterion = torch.nn.MSELoss().to(device)
 
-    epoches = 60
+    epoches = 100
     # epoch_mark_0 = 20
     # epoch_mark_1 = 40
     # epoch_mark_2 = 60
@@ -210,8 +210,8 @@ def main():
     lr_schedule = PiecewiseLinear([
         (0, 5e-5),
         (4, 1e-4),
-        (50, 5e-6),
-        (60, 1e-7),
+        (70, 5e-6),
+        (100, 1e-7),
     ])
 
     if not disable_all_output:
