@@ -52,3 +52,8 @@ improve_seq looks better (based on test samples) but has higher test loss.
 This may be related to test loss reporting issue.
 Might be related to distributed loader or fp16.
 Also, fix loss reporting in general and in distributed case.
+
+2020-05-31 15:11
+
+All runs in 5-30 have a bug which effects test/train error (failed to randomly
+partition samples correctly). Retrying now.
