@@ -150,7 +150,7 @@ class SubsetGroupedRandomDistributedSampler(torch.utils.data.sampler.Sampler):
                 for (i, place) in index_and_place_iter)
 
     def __len__(self):
-        return len(self.indices) * self.group_size
+        return self.num_samples * self.group_size
 
     def set_epoch(self, epoch):
         self.epoch = epoch
