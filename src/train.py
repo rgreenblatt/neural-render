@@ -31,7 +31,11 @@ def main():
     parser.add_argument('--train-images-to-save', type=int, default=64)
     parser.add_argument('--test-images-to-save', type=int, default=256)
     parser.add_argument('--save-model-every', type=int, default=5)
-    parser.add_argument('--display-freq', type=int, default=100)
+    parser.add_argument(
+        '--display-freq',
+        type=int,
+        default=5000,
+        help='number of samples per display print out and tensorboard save')
     parser.add_argument('--name', required=True)
     parser.add_argument('--norm-style', default='bn')
     parser.add_argument('--max-ch', type=int, default=256)
@@ -43,7 +47,10 @@ def main():
                         action='store_true',
                         help='do not use sync bn when running in parallel')
     parser.add_argument('--profile', action='store_true')
-    parser.add_argument('--profile-len', type=int, default=4)
+    parser.add_argument('--profile-len',
+                        type=int,
+                        default=5000,
+                        help='number of samples to run for profiling')
     parser.add_argument('--hide-model-info', action='store_true')
     parser.add_argument('--fake-data',
                         action='store_true',
@@ -268,6 +275,7 @@ def main():
         for param_group in optimizer.param_groups:
             param_group['lr'] = lr
 
+        steps_since_display = 0
         max_train_step = (len(train) - 1) * world_batch_size
         format_len = math.floor(math.log10(max_train_step)) + 1
 
@@ -289,6 +297,7 @@ def main():
             image = data['image'].to(device)
 
             step += world_batch_size
+            steps_since_display += world_batch_size
 
             optimizer.zero_grad()
 
@@ -308,13 +317,14 @@ def main():
 
             optimizer.step()
 
-            if args.profile and i >= args.profile_len:
+            if args.profile and step >= args.profile_len:
                 return
 
-            if (i+1) % args.display_freq == 0:
+            if steps_since_display >= args.display_freq:
                 train_display()
+                steps_since_display = 0
 
-        if (i+1) % args.display_freq != 0:
+        if steps_since_display > 0:
             train_display()
 
         net.eval()
