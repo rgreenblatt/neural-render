@@ -77,7 +77,7 @@ def main():
             return tensor
 
         rt = tensor.clone()
-        torch.distributed.all_reduce(rt, op=torch.distributed.reduce_op.SUM)
+        torch.distributed.all_reduce(rt, op=torch.distributed.ReduceOp.SUM)
         rt /= args.world_size
 
         return rt
