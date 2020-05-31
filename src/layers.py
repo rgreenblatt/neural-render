@@ -511,7 +511,7 @@ class ImageToSeq(nn.Module):
 
     def reset_parameters(self):
         nn.init.ones_(self._overall_gain)
-        nn.init.zeros_(self._overall_bias)
+        nn.init.constant_(self._overall_bias, -10.0)
 
     # x is seq (BS x D), y is image type data (B x C x H x W)
     def forward(self, x, y):
