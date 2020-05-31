@@ -160,7 +160,7 @@ def main():
         show_info=not hide_model_info,
         use_seq_to_image=not args.disable_seq_to_image,
         use_image_to_seq=args.use_image_to_seq,
-        use_seq_block=args.use_seq_block,
+        use_seq_block=args.use_seq_blocks,
         checkpoint_conv=args.checkpoint_conv
     )
 
