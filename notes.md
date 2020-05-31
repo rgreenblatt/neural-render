@@ -39,7 +39,16 @@ To try/TODO:
  - 4x4 is worse than it should be - better start block?
 
 2020-05-30 21:40
+
 Added better image -> seq and now testing image -> seq and seq blocks.
 Tried a bunch of runs with O2. BAD divergence behavior. DO NOT BE TEMPTED.
 O2 will not work with current model (O1 seems fine).
 
+2020-05-31 10:53
+
+I think something is bugged with test loss reporting. Test loss is order
+of magnitude lower consistently at start of training.
+improve_seq looks better (based on test samples) but has higher test loss.
+This may be related to test loss reporting issue.
+Might be related to distributed loader or fp16.
+Also, fix loss reporting in general and in distributed case.
