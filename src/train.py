@@ -274,7 +274,8 @@ def main():
             if not disable_all_output:
                 print("{}, epoch {}, step {}/{}, train loss {:.4e}".format(
                     datetime.datetime.now(), epoch,
-                    str(i).zfill(format_len), max_train_step, train_loss))
+                    str(i * batch_size).zfill(format_len), max_train_step,
+                    train_loss))
                 writer.add_scalar("loss/train", train_loss, step)
 
         if not disable_all_output:
