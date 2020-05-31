@@ -283,9 +283,10 @@ def main():
             output_images_train = ImageTracker()
 
         for i, data in enumerate(train):
-            step += 1
             inp = data['inp'].to(device)
             image = data['image'].to(device)
+
+            step += image.size(0)
 
             optimizer.zero_grad()
 
