@@ -1,3 +1,4 @@
-CUDA_VISIBLE_DEVICES=0,1 python3 -m torch.distributed.launch --nproc_per_node=2 src/train.py --batch-size 28 --name standard_run &> train.log & 
+CUDA_VISIBLE_DEVICES=0,1 python3 -m torch.distributed.launch --nproc_per_node=2 src/train.py --batch-size 28 --name standard_run &> standard_run.log & 
 
 CUDA_VISIBLE_DEVICES=2,3 python3 -m torch.distributed.launch --nproc_per_node=2 --master_port 8000 src/train.py --batch-size 24 --name improve_seq --improve-seq &> improve_seq.log & 
+
