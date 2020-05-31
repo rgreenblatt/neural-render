@@ -252,6 +252,8 @@ def main():
 
     step = 0
 
+    world_batch_size = batch_size * args.world_size
+
     for epoch in range(epoches):
         epoch_callback(epoch)
 
@@ -266,7 +268,7 @@ def main():
         for param_group in optimizer.param_groups:
             param_group['lr'] = lr
 
-        max_train_step = (len(train) - 1) * batch_size
+        max_train_step = (len(train) - 1) * world_batch_size
         format_len = math.floor(math.log10(max_train_step)) + 1
 
         def train_display():
@@ -274,8 +276,8 @@ def main():
             if not disable_all_output:
                 print("{}, epoch {}, step {}/{}, train loss {:.4e}".format(
                     datetime.datetime.now(), epoch,
-                    str(i * batch_size).zfill(format_len), max_train_step,
-                    train_loss))
+                    str(i * world_batch_size).zfill(format_len),
+                    max_train_step, train_loss))
                 writer.add_scalar("loss/train", train_loss, step)
 
         if not disable_all_output:
@@ -286,7 +288,7 @@ def main():
             inp = data['inp'].to(device)
             image = data['image'].to(device)
 
-            step += batch_size
+            step += world_batch_size
 
             optimizer.zero_grad()
 
