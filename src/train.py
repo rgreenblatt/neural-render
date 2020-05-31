@@ -286,12 +286,13 @@ def main():
 
             loss = criterion(outputs, image)
 
+            train_loss += loss.item()
+
             with amp.scale_loss(loss, optimizer) as scaled_loss:
                 scaled_loss.backward()
 
             optimizer.step()
 
-            train_loss += loss.item()
             if args.profile and i >= args.profile_len:
                 return
 
