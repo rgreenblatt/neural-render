@@ -250,11 +250,8 @@ def main():
 
     scenes = []
 
-    object_count = None
-
     for i in tqdm(range(count)):
-        if i % max_batch_size == 0:
-            object_count = np.random.randint(1, 8)
+        object_count = np.random.randint(1, 8)
 
         params = random_scene(object_count, 1.0)
         scene = DisplayBlenderScene(params)
