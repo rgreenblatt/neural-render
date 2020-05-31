@@ -37,3 +37,9 @@ To try/TODO:
  - Tune lr better for new loss function 
  - MOAR data???? 
  - 4x4 is worse than it should be - better start block?
+
+2020-05-30 21:40
+Added better image -> seq and now testing image -> seq and seq blocks.
+Tried a bunch of runs with O2. BAD divergence behavior. DO NOT BE TEMPTED.
+O2 will not work with current model (O1 seems fine).
+

@@ -17,6 +17,12 @@ def load_exr(path):
 def write_exr(path, img):
     return imageio.imwrite(path, img)
 
+def chunks_drop_last(lst, n):
+    """Yield successive n-sized chunks from lst."""
+    for i in range(0, len(lst), n):
+        if len(lst[i:]) < n:
+            return
+        yield lst[i:i + n]
 
 class RenderedDataset(torch.utils.data.Dataset):
     def __init__(self, p_path, img_path, resolution, transform, fake_data,
@@ -54,11 +60,27 @@ class RenderedDataset(torch.utils.data.Dataset):
 
         return sample
 
-    def __len__(self):
+    def groups(self, batch_size):
+        grouped = []
+
         if self.fake_data:
-            return 65536 # TODO: make configurable
+            grouped = [[], [i for i in range(self.fake_data_size)]]
         else:
-            return len(self.data)
+            for i, inp in enumerate(self.data):
+                index = inp.shape[0]
+                if len(grouped) <= index:
+                    grouped = grouped + [[] for _ in range((index + 1) -
+                                                           len(grouped))]
+                grouped[index].append(i)
+
+        out = []
+
+        for group in grouped:
+            out.extend(chunks_drop_last(group, batch_size))
+
+        return out
+
+
 
 
 class ToTensor(object):
@@ -76,30 +98,6 @@ class ToTensor(object):
         }
 
 
-def get_grouped_index(indexes, group_size, i):
-    return indexes[i // group_size] * group_size + i % group_size
-
-
-# compare to SubsetRandomSampler
-class SubsetGroupedSampler(torch.utils.data.sampler.Sampler):
-    r"""Samples elements from a given list of indices, without replacement
-    ensuring groups remain together.
-
-    Arguments:
-        indices (sequence): a sequence of indices
-    """
-    def __init__(self, indices, group_size):
-        self.indices = indices
-        self.group_size = group_size
-
-    def __iter__(self):
-        return (get_grouped_index
-                for i in range(len(self.indices) * self.group_size))
-
-    def __len__(self):
-        return len(self.indices) * self.group_size
-
-
 class SubsetGroupedRandomDistributedSampler(torch.utils.data.sampler.Sampler):
     r"""Samples elements randomly from a given list of indices, without
     replacement ensuring groups remain together.
@@ -112,12 +110,14 @@ class SubsetGroupedRandomDistributedSampler(torch.utils.data.sampler.Sampler):
     """
     def __init__(self,
                  indices,
-                 group_size,
+                 groups,
                  num_replicas=1,
                  rank=0,
                  shuffle=True):
         self.indices = indices
-        self.group_size = group_size
+        self.groups = groups
+        assert len(self.groups) != 0
+        self.group_size = len(self.groups[0])
         self.shuffle = shuffle
 
         self.epoch = 0
@@ -149,11 +149,10 @@ class SubsetGroupedRandomDistributedSampler(torch.utils.data.sampler.Sampler):
         index_and_place_iter = itertools.product(indices,
                                                  range(self.group_size))
 
-        return (self.indices[i] * self.group_size + place
-                for (i, place) in index_and_place_iter)
+        return (self.groups[i][place] for (i, place) in index_and_place_iter)
 
     def __len__(self):
-        return self.num_samples * self.group_size
+        return len(self.groups) * self.group_size
 
     def set_epoch(self, epoch):
         self.epoch = epoch
@@ -182,24 +181,26 @@ def load_dataset(p_path,
                               start_range=start_range,
                               end_range=end_range)
 
+    groups = dataset.groups(batch_size)
+
     # we load in chunks to ensure each batch has consistant size
     # the dataset must have a consistant size per each group of batch_size
-    dataset_size = len(dataset) // batch_size
+    num_groups = len(groups)
 
     np.random.seed(seed)
 
-    indices = list(range(dataset_size))
-    split = int(dataset_size * validation_prop)
+    indices = list(range(num_groups))
+    split = int(num_groups * validation_prop)
 
     if shuffle_split:
         np.random.shuffle(indices)
     train_indices, val_indices = indices[split:], indices[:split]
 
     train_sampler = SubsetGroupedRandomDistributedSampler(
-        train_indices, batch_size, num_replicas=num_replicas, rank=rank)
+        train_indices, groups, num_replicas=num_replicas, rank=rank)
     val_sampler = SubsetGroupedRandomDistributedSampler(
         val_indices,
-        batch_size,
+        groups,
         num_replicas=num_replicas,
         rank=rank,
         shuffle=False)
