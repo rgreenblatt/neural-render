@@ -17,7 +17,8 @@ from apex import amp
 from model import Net
 from load_data import load_dataset
 from arch import net_params
-from utils import mkdirs, PiecewiseLinear, linear_to_srgb
+from utils import (mkdirs, PiecewiseLinear, linear_to_srgb, LossTracker,
+                   ImageTracker)
 from criterion import PerceptualLoss
 
 
@@ -27,9 +28,10 @@ def main():
     parser.add_argument('--batch-size', type=int, default=16)
     parser.add_argument('--resolution', type=int, default=128)
     parser.add_argument('--valid-split-seed', type=int, default=0)
-    parser.add_argument('--train-images-to-save', type=int, default=128)
-    parser.add_argument('--test-images-to-save', type=int, default=128)
+    parser.add_argument('--train-images-to-save', type=int, default=64)
+    parser.add_argument('--test-images-to-save', type=int, default=256)
     parser.add_argument('--save-model-every', type=int, default=5)
+    parser.add_argument('--display-freq', type=int, default=100)
     parser.add_argument('--name', required=True)
     parser.add_argument('--norm-style', default='bn')
     parser.add_argument('--max-ch', type=int, default=256)
@@ -69,6 +71,16 @@ def main():
         torch.distributed.init_process_group(backend='nccl',
                                              init_method='env://')
         args.world_size = torch.distributed.get_world_size()
+
+    def reduce_tensor(tensor):
+        if not args.distributed:
+            return tensor
+
+        rt = tensor.clone()
+        torch.distributed.all_reduce(rt, op=torch.distributed.reduce_op.SUM)
+        rt /= args.world_size
+
+        return rt
 
     device = torch.device("cuda:{}".format(args.local_rank) if torch.cuda.
                           is_available() else "cpu")
@@ -229,8 +241,8 @@ def main():
 
         writer = SummaryWriter(log_dir=tensorboard_output)
 
-    train_batches_to_save = math.ceil(args.train_images_to_save / batch_size)
-    test_batches_to_save = math.ceil(args.test_images_to_save / batch_size)
+    train_batches_save = math.ceil(args.train_images_to_save / batch_size)
+    test_batches_save = math.ceil(args.test_images_to_save / batch_size)
 
     initial_range_start = 0
     initial_range_end = -1
@@ -238,33 +250,40 @@ def main():
     train, test, epoch_callback = get_dataset(initial_range_start,
                                               initial_range_end)
 
+    step = 0
+
     for epoch in range(epoches):
+        epoch_callback(epoch)
+
         net.train()
-        train_loss = 0.0
+
+        i = 0
+
+        train_loss_tracker = LossTracker(reduce_tensor)
 
         lr = args.lr_multiplier * lr_schedule(epoch)
 
         for param_group in optimizer.param_groups:
             param_group['lr'] = lr
 
-        # if epoch == epoch_mark_0:
-        #     print("extending dataset at epoch_mark_0")
-        #     train, test, epoch_callback = get_dataset(0, -1)
+        max_train_step = len(train) - 1
+        format_len = math.floor(math.log10(max_train_step)) + 1
 
-        # if epoch == epoch_mark_1:
-        #     print("extending dataset at epoch_mark_1")
-        #     train, test, epoch_callback = get_dataset(0, 12288)
+        def train_display():
+            train_loss = train_loss_tracker.query_reset()
+            if not disable_all_output:
+                print("{}, epoch {}, step {}/{}, train loss {:.4e}".format(
+                    datetime.datetime.now(), epoch,
+                    str(i).zfill(format_len),
+                    len(train) - 1, train_loss))
+                writer.add_scalar("loss/train", train_loss, step)
 
-        # if epoch == epoch_mark_2:
-        #     print("extending dataset at epoch_mark_2")
-        #     train, test, epoch_callback = get_dataset(0, -1)
-
-        epoch_callback(epoch)
-
-        actual_images_train = None
-        output_images_train = None
+        if not disable_all_output:
+            actual_images_train = ImageTracker()
+            output_images_train = ImageTracker()
 
         for i, data in enumerate(train):
+            step += 1
             inp = data['inp'].to(device)
             image = data['image'].to(device)
 
@@ -272,21 +291,14 @@ def main():
 
             outputs = net(inp)
 
-            if i < train_batches_to_save:
-                cpu_images = linear_to_srgb(image.detach().cpu())
-                cpu_outputs = linear_to_srgb(outputs.detach().cpu())
-                if actual_images_train is not None:
-                    actual_images_train = torch.cat(
-                        (actual_images_train, cpu_images), dim=0)
-                    output_images_train = torch.cat(
-                        (output_images_train, cpu_outputs), dim=0)
-                else:
-                    actual_images_train = cpu_images
-                    output_images_train = cpu_outputs
+            # save at end of training
+            if not disable_all_output and len(train) - i <= train_batches_save:
+                actual_images_train.update(image)
+                output_images_train.update(outputs)
 
             loss = criterion(outputs, image)
 
-            train_loss += loss.item()
+            train_loss_tracker.update(loss)
 
             with amp.scale_loss(loss, optimizer) as scaled_loss:
                 scaled_loss.backward()
@@ -296,13 +308,18 @@ def main():
             if args.profile and i >= args.profile_len:
                 return
 
-        train_loss /= len(train)
+            if (i+1) % args.display_freq == 0:
+                train_display()
+
+        if (i+1) % args.display_freq != 0:
+            train_display()
 
         net.eval()
-        test_loss = 0.0
 
-        actual_images_test = None
-        output_images_test = None
+        test_loss_tracker = LossTracker(reduce_tensor)
+
+        actual_images_test = ImageTracker()
+        output_images_test = ImageTracker()
 
         with torch.no_grad():
             for i, data in enumerate(test):
@@ -311,44 +328,38 @@ def main():
 
                 outputs = net(inp)
 
-                if i < test_batches_to_save:
-                    cpu_images = linear_to_srgb(image.detach().cpu())
-                    cpu_outputs = linear_to_srgb(outputs.detach().cpu())
-                    if actual_images_test is not None:
-                        actual_images_test = torch.cat(
-                            (actual_images_test, cpu_images), dim=0)
-                        output_images_test = torch.cat(
-                            (output_images_test, cpu_outputs), dim=0)
-                    else:
-                        actual_images_test = cpu_images
-                        output_images_test = cpu_outputs
+                if not disable_all_output and i < test_batches_save:
+                    actual_images_test.update(image)
+                    output_images_test.update(outputs)
 
                 loss = criterion(outputs, image)
 
-                test_loss += loss.item()
+                test_loss_tracker.update(loss)
 
-        test_loss /= len(test)
-
+        test_loss = test_loss_tracker.query_reset()
         if not disable_all_output:
-            print(
-                "{}, epoch: {}, train loss: {}, test loss: {}, lr: {}".format(
-                    datetime.datetime.now(), epoch, train_loss, test_loss, lr))
+            print("{}, epoch {}, lr {:.4e}, test loss {:.4e}".format(
+                datetime.datetime.now(), epoch, lr, test_loss))
+
+            actual_images_train = actual_images_train.query_reset()
+            output_images_train = output_images_train.query_reset()
+            actual_images_test = actual_images_test.query_reset()
+            output_images_test = output_images_test.query_reset()
 
             if actual_images_train is not None:
                 writer.add_image("images/train/actual",
-                                 make_grid(actual_images_train), epoch)
+                                 make_grid(actual_images_train), step)
                 writer.add_image("images/train/output",
-                                 make_grid(output_images_train), epoch)
+                                 make_grid(output_images_train), step)
 
             if actual_images_test is not None:
                 writer.add_image("images/test/actual",
-                                 make_grid(actual_images_test), epoch)
+                                 make_grid(actual_images_test), step)
                 writer.add_image("images/test/output",
-                                 make_grid(output_images_test), epoch)
+                                 make_grid(output_images_test), step)
 
-            writer.add_scalar("loss/train", train_loss, epoch)
-            writer.add_scalar("loss/test", test_loss, epoch)
-            writer.add_scalar("lr", lr, epoch)
+            writer.add_scalar("loss/test", test_loss, step)
+            writer.add_scalar("lr", lr, step)
 
         # if not disable_all_output and (epoch + 1) % args.save_model_every == 0:
         #     torch.save(

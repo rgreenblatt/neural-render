@@ -1,6 +1,7 @@
 import os
 import math
 import pickle
+from collections import defaultdict
 
 import torchvision
 import torch
@@ -61,21 +62,17 @@ class RenderedDataset(torch.utils.data.Dataset):
         return sample
 
     def groups(self, batch_size):
-        grouped = []
+        grouped = defaultdict(list)
 
         if self.fake_data:
-            grouped = [[], [i for i in range(self.fake_data_size)]]
+            grouped = {0: [], 1: [i for i in range(self.fake_data_size)]}
         else:
             for i, inp in enumerate(self.data):
-                index = inp.shape[0]
-                if len(grouped) <= index:
-                    grouped = grouped + [[] for _ in range((index + 1) -
-                                                           len(grouped))]
-                grouped[index].append(i)
+                grouped[inp.shape[0]].append(i)
 
         out = []
 
-        for group in grouped:
+        for group in grouped.values():
             out.extend(chunks_drop_last(group, batch_size))
 
         return out
@@ -149,10 +146,11 @@ class SubsetGroupedRandomDistributedSampler(torch.utils.data.sampler.Sampler):
         index_and_place_iter = itertools.product(indices,
                                                  range(self.group_size))
 
-        return (self.groups[i][place] for (i, place) in index_and_place_iter)
+        return (self.groups[self.indices[i]][place]
+                for (i, place) in index_and_place_iter)
 
     def __len__(self):
-        return len(self.groups) * self.group_size
+        return len(self.indices) * self.group_size
 
     def set_epoch(self, epoch):
         self.epoch = epoch

@@ -104,3 +104,55 @@ def resize(img, output_size):
 
     return img.reshape(
         (output_size, bin_size, output_size, bin_size, 3)).mean(3).mean(1)
+
+class LossTracker():
+    def __init__(self, reduce_tensor):
+        super().__init__()
+
+        self.reduce_tensor = reduce_tensor
+
+        self.total_loss = None
+        self.loss_steps = 0
+
+    def update(self, loss):
+        # clone probably not needed
+        if self.total_loss is None:
+            self.total_loss = loss.detach().clone()
+        else:
+            self.total_loss += loss.detach().clone()
+        self.loss_steps += 1
+
+    def query_reset(self):
+        if self.total_loss is None:
+            return None
+
+        avg_loss = self.reduce_tensor(self.total_loss).item() / self.loss_steps
+        self.total_loss = None
+        self.loss_steps = 0
+
+        return avg_loss
+
+
+class ImageTracker():
+    def __init__(self):
+        super().__init__()
+
+        self.images = None
+
+    def update(self, images):
+        # clone probably not needed
+        images = linear_to_srgb(images.detach().clone().float())
+
+        if self.images is None:
+            self.images = images
+        else:
+            self.images = torch.cat((self.images, images), dim=0)
+
+    def query_reset(self):
+        if self.images is None:
+            return None
+
+        cpu_images = self.images.cpu()
+        self.images = None
+
+        return cpu_images
