@@ -57,3 +57,35 @@ Also, fix loss reporting in general and in distributed case.
 
 All runs in 5-30 have a bug which effects test/train error (failed to randomly
 partition samples correctly). Retrying now.
+
+2020-06-01 00:58
+
+Ran many more tests. ImageToSeq and SeqToImage both seem to work quite well
+(after adjusting ImageToSeq to have an initialization which initially
+ignores the image - this helps with avoiding loss of information).
+If sequence blocks are added (transformers), then test loss is SUPER jumpy.
+However, in general, sequence blocks seem to work (after things cool a bit).
+This looks like BN effects, but it isn't clear to me why sequence blocks
+specifically would cause this. Right now, we use separate channels for
+SeqToImage and BN is directly applied to this. Seems related but hard to see
+how.
+
+To try/TODO:
+ - Make background black and switch to RELU output activation.
+ - Eliminate input transformer
+ - Switch to standard descending channel type architecture.
+ - Add SeqToImage to all channels with an overall weight much like how
+   ImageToSeq works (currently small number of channels are concatenated).
+ - Correct frequencies of ImageToSeq and SeqToImage?
+ - Correct (base) seq size?
+ - Correct (base) ch count?
+ - Correct (base) depth?
+ - Correct expand ratio?
+ - Correct initial dim?
+ - Is staggering/interlacing actually improving efficiency?
+ - How should the model be scaled up (ch multiplier, depth multiplier, seq
+   size multiplier)?
+Carried over from before:
+ - better strategies for attention
+ - "intersection" modules/activation
+
