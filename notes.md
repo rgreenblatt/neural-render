@@ -101,7 +101,7 @@ Carried over from before:
 Implemented better system for lr (I think). Now running with MANY more epochs
 (200).
 
-For previous runs:
+Runs (2020-05-31):
 
 standard_run: no SeqToImage or seq blocks
 
@@ -129,6 +129,30 @@ To try/TODO:
   - Dropout (on seq blocks) and other regularization
   - Different seq blocks/more residual blocks somehow
 
+Runs (2020-06-1 part_0):
+
+just-image-to-seq_big: big run with ImageToSeq and SeqToImage
+orig_big: big run without ImageToSeq
+(has bug mentioned below)
+I deleted the tensorboard files for these runs prior to copying them locally
+(oops). TLDR: ImageToSeq ended at 6e-4 and without ended up at 1.2e-3.
+Both converged train to about 1e-4.
+
 2020-06-01 12:53
 
-There was a bug in ImageToSeq involving the pooling.
+There was a bug in ImageToSeq involving the pooling. This was fixed and will be
+tested (independently of other changes). We previously incorrectly used the
+same overall_weight for all sequences in ImageToSeq.
+
+2020-06-01 17:49
+
+Runs (2020-06-1 part_1):
+
+add_seq_to_image: Added SeqToImage for each channel using "is_cross_attn" -
+based on approach of ImageToSeq.
+
+big_new_run: Same as just-image-to-seq_big, but 100 epochs only and bug fixed.
+(new baseline).
+
+add_seq_to_image_quarter_lr: add_seq_to_image diverged, so I changed learning
+rates to be 1/4.

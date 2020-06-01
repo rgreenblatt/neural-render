@@ -25,7 +25,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--lr-multiplier', type=float, default=1.0)
     parser.add_argument('--batch-size', type=int, default=16)
-    parser.add_argument('--epoches', type=int, default=200)
+    parser.add_argument('--epochs', type=int, default=200)
     parser.add_argument('--resolution', type=int, default=128)
     parser.add_argument('--valid-split-seed', type=int, default=0)
     parser.add_argument('--train-images-to-save', type=int, default=64)
@@ -230,7 +230,7 @@ def main():
 
     factor = 2e-6
     scaled_lr = args.lr_multiplier * batch_size * args.world_size * factor
-    lr_schedule = LRSched(scaled_lr, args.epoches)
+    lr_schedule = LRSched(scaled_lr, args.epochs)
 
     if not disable_all_output:
         output_dir = "outputs/{}/".format(args.name)
@@ -259,7 +259,7 @@ def main():
 
     world_batch_size = batch_size * args.world_size
 
-    for epoch in range(args.epoches):
+    for epoch in range(args.epochs):
         epoch_callback(epoch)
 
         net.train()
@@ -281,7 +281,7 @@ def main():
             train_loss = train_loss_tracker.query_reset()
             if not disable_all_output:
                 print("{}, epoch {}/{}, step {}/{}, train loss {:.4e}".format(
-                    datetime.datetime.now(), epoch, args.epoches - 1,
+                    datetime.datetime.now(), epoch, args.epochs - 1,
                     str(i * world_batch_size).zfill(format_len),
                     max_train_step, train_loss))
                 writer.add_scalar("loss/train", train_loss, step)
@@ -350,7 +350,7 @@ def main():
         test_loss = test_loss_tracker.query_reset()
         if not disable_all_output:
             print("{}, epoch {}/{}, lr {:.4e}, test loss {:.4e}".format(
-                datetime.datetime.now(), epoch, args.epoches - 1, lr,
+                datetime.datetime.now(), epoch, args.epochs - 1, lr,
                 test_loss))
 
             actual_images_train = actual_images_train.query_reset()
