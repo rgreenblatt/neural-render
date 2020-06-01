@@ -26,7 +26,8 @@ def subset_named_tuple(to_tup, from_tup, **kwargs):
 _GlobalArgParams = collections.namedtuple('GlobalArgsParams', [
     'start_width', 'end_width', 'input_size', 'seq_size',
     'base_transformer_n_heads', 'base_transformer_n_layers', 'nonlocal_index',
-    'start_ch', 'ch_per_head', 'norm_style', 'checkpoint_conv'
+    'start_ch', 'ch_per_head', 'norm_style', 'checkpoint_conv',
+    'use_base_transformer'
 ])
 
 
@@ -62,6 +63,7 @@ _BlockArgsParams = collections.namedtuple('BlockArgsParams', [
     'use_seq_to_image',
     'use_image_to_seq',
     'use_seq_block',
+    'add_seq_to_image',
 ])
 
 
@@ -98,7 +100,7 @@ class BlockArgs(_BlockArgsParams):
         self.input_ch_conv = round_valid(self.input_ch_this_block)
         self.output_ch_conv = round_valid(self.output_ch_this_block)
 
-        if self.use_seq_to_image_this_block:
+        if self.use_seq_to_image_this_block and not self.add_seq_to_image:
             self.output_ch_conv -= round(self.attn_output_ch)
 
         if self.show_info:
@@ -131,10 +133,15 @@ class BlockArgs(_BlockArgsParams):
                               hidden_ff_size=self.seq_size * 4)
 
     def seq_to_image_args(self):
+        if self.add_seq_to_image:
+            output_ch = self.output_ch_conv
+        else:
+            output_ch = self.attn_output_ch
         return SeqToImageCfg(image_ch=self.output_ch_conv,
                              seq_size=self.seq_size,
-                             output_ch=self.attn_output_ch,
-                             n_heads=self.image_n_heads)
+                             output_ch=output_ch,
+                             n_heads=self.image_n_heads,
+                             add_all_ch=self.add_seq_to_image)
 
 
 def net_params(input_size,
@@ -152,9 +159,12 @@ def net_params(input_size,
                norm_style='bn',
                show_info=True,
                use_seq_to_image=True,
-               use_image_to_seq=False,
+               use_image_to_seq=True,
                use_seq_block=False,
-               checkpoint_conv=False):
+               checkpoint_conv=False,
+               use_base_transformer=True,
+               only_descending_ch=False,
+               add_seq_to_image=False):
     """Create BlockArgs and GlobalParams
 
     Args:
@@ -178,6 +188,9 @@ def net_params(input_size,
     num_repeat = 2  # TODO: better approach
 
     blocks_args = []
+
+    if only_descending_ch:
+        raise NotImplementedError()
 
     ch_before = start_ch
 
@@ -224,6 +237,7 @@ def net_params(input_size,
                 use_seq_to_image=use_seq_to_image,
                 use_image_to_seq=use_image_to_seq,
                 use_seq_block=use_seq_block,
+                add_seq_to_image=add_seq_to_image,
             ))
 
         ch_before = ch_after
@@ -240,6 +254,7 @@ def net_params(input_size,
         ch_per_head=start_ch_per_head,
         norm_style=norm_style,
         checkpoint_conv=checkpoint_conv,
+        use_base_transformer=use_base_transformer,
     )
 
     return blocks_args, global_args

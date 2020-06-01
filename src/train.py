@@ -55,11 +55,14 @@ def main():
                         action='store_true',
                         help='disable loading data for profiling')
 
-    parser.add_argument('--disable-seq-to-image', action='store_true')
+    parser.add_argument('--no-seq-to-image', action='store_true')
     parser.add_argument('--no-perceptual-loss', action='store_true')
     parser.add_argument('--use-seq-blocks', action='store_true')
-    parser.add_argument('--use-image-to-seq', action='store_true')
+    parser.add_argument('--no-image-to-seq', action='store_true')
     parser.add_argument('--checkpoint-conv', action='store_true')
+    parser.add_argument('--no-base-transformer', action='store_true')
+    parser.add_argument('--only-descending-ch', action='store_true')
+    parser.add_argument('--add-seq-to-image', action='store_true')
 
     args = parser.parse_args()
 
@@ -157,10 +160,13 @@ def main():
         max_ch=args.max_ch,
         norm_style=args.norm_style,
         show_info=not hide_model_info,
-        use_seq_to_image=not args.disable_seq_to_image,
-        use_image_to_seq=args.use_image_to_seq,
+        use_seq_to_image=not args.no_seq_to_image,
+        use_image_to_seq=not args.no_image_to_seq,
         use_seq_block=args.use_seq_blocks,
-        checkpoint_conv=args.checkpoint_conv
+        checkpoint_conv=args.checkpoint_conv,
+        use_base_transformer=not args.no_base_transformer,
+        only_descending_ch=args.only_descending_ch,
+        add_seq_to_image=args.add_seq_to_image,
     )
 
     net = Net(blocks_args, global_args)

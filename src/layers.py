@@ -138,69 +138,111 @@ def seq_to_width(x, width):
 class MultiHeadedSelfAttention(nn.Module):
     """ Multi-Headed Dot Product Attention """
     def __init__(self,
-                 input_size,
+                 value_input_size,
+                 query_input_size,
                  key_size,
                  output_size,
                  n_heads,
-                 query_is_input=False):
+                 is_cross_attn=False,
+                 use_proj_c=True,
+                 input_is_query=False):
         super().__init__()
 
-        self.query_is_input = query_is_input
+        self.is_cross_attn = is_cross_attn
+        self.use_proj_c = use_proj_c and not self.is_cross_attn
+        self.input_is_query = input_is_query
 
-        self._proj_k = nn.Linear(input_size, key_size)
-        self._proj_v = nn.Linear(input_size, output_size)
-
-        if not self.query_is_input:
-            self._proj_q = nn.Linear(input_size, key_size)
-
-            # added here (TODO: ablation etc important)
-            self._proj_c = nn.Linear(input_size, output_size)
+        self._proj_k = nn.Linear(value_input_size, key_size)
+        self._proj_v = nn.Linear(value_input_size, output_size)
+        if self.input_is_query:
+            assert not self.use_proj_c
+        else:
+            self._proj_q = nn.Linear(query_input_size, key_size)
 
         self.n_heads = n_heads
 
-    def forward(self, x, input_query=None):
+        if self.is_cross_attn:
+            assert query_input_size == output_size
+            self._overall_gain = nn.Parameter(
+                torch.Tensor(1, self.n_heads, 1, 1))
+            self._overall_bias = nn.Parameter(
+                torch.Tensor(1, self.n_heads, 1, 1))
+        elif self.use_proj_c:
+            # added here (TODO: ablation etc important)
+            self._proj_c = nn.Linear(query_input_size, output_size)
+
+        self.reset_parameters()
+
+    def reset_parameters(self):
+        if self.is_cross_attn:
+            nn.init.ones_(self._overall_gain)
+            # This -10.0 might be very wrong...
+            nn.init.constant_(self._overall_bias, -10.0)
+
+    def forward(self, pre_value_key, pre_query):
         """
-        x, q(query), k(key), v(value), c(carry) : (B(batch), D(dim))
-        * split D(dim) into (H(n_heads), W(width of head)) ; D = H * W
+        pre_value_key is used to compute value/key
+        pre_query is used to compute query
+        pre_value_key has size (B, S_v, D_v)
+        pre_query has size (B, S_q, D_q)
 
-        For the key and query, W correponds to key_size (WK).
-        For the value, W correponds to output_size (WO).
+        key size is D_k
+        output size is D_o
         """
 
-        # (B, S, D) -proj-> (B, S, D) -split-> (B, S, H, W)
-
-        if self.query_is_input:
-            q = input_query
+        if self.input_is_query:
+            q = pre_query
         else:
-            q = self._proj_q(x)
+            # (B, S_q, D_q) -proj-> (B, S_q, D_k)
+            q = self._proj_q(pre_query)
 
+        if self.use_proj_c:
             # I think this might not be needed in general
-            c = self._proj_c(x)
+            # (B, S_q, D_q) -proj-> (B, S_q, D_o)
+            c = self._proj_c(pre_query)
 
-        k = self._proj_k(x)
-        v = self._proj_v(x)
+        # (B, S_v, D_v) -proj-> (B, S_q, D_k)
+        k = self._proj_k(pre_value_key)
+        # (B, S_v, D_v) -proj-> (B, S_q, D_o)
+        v = self._proj_v(pre_value_key)
 
+        # (B, S, D) -split-> (B, S, H, W)
         q, k, v = (split_last(x, (self.n_heads, -1)) for x in [q, k, v])
 
         # (B, S, H, W) -transpose-> (B, H, S, W)
-        # if using input_query, then b_q is:
-        # (B, S*, H, W) -transpose-> (B, H, S*, W)
-        # S* can be anything (output sequence size)
-
         q, k, v = (x.transpose(1, 2) for x in [q, k, v])
 
-        # (B, H, S, WK) @ (B, H, WK, S) -> (B, H, S, S)
+        # (B, H, S_q, W_k) @ (B, H, W_k, S_v) -> (B, H, S_q, S_v)
         scores = (q @ k.transpose(-2, -1)) / np.sqrt(k.size(-1))
 
-        # (B, H, S, S) -softmax-> (B, H, S, S) (could have dropout)
+        if self.is_cross_attn:
+            # (B, H, S_q, S_v) -mean-> (B, H, S_q, 1)
+            pooled_scores = scores.mean(-1, keepdim=True)
+
+            overall_weight = torch.sigmoid(pooled_scores * self._overall_gain +
+                                           self._overall_bias)
+
+        # (B, H, S_q, S_v) -softmax-> (B, H, S_q, S_v) (could have dropout)
         scores = F.softmax(scores, dim=-1)
 
-        # (B, H, S, S) @ (B, H, S, WV) -> (B, H, S, WV) -trans-> (B, S, H, WV)
-        h = (scores @ v).transpose(1, 2).contiguous()
-        # -merge-> (B, S, D)
-        out = merge_last(h, 2)
+        # (B, H, S_q, S_v) @ (B, H, S_v, W_o) -> (B, H, S_q, W_o)
+        h = (scores @ v)
 
-        if not self.query_is_input:
+        if self.is_cross_attn:
+            # (B, S_q, D_o) -split + trans-> (B, H, S_q, W_o)
+            pq_split = split_last(pre_query,
+                                  (self.n_heads, -1)).transpose(1, 2)
+            out = pq_split * (1 - overall_weight) + h * overall_weight
+        else:
+            out = h
+
+        # -trans-> (B, S_q, H, W_o)
+        out = out.transpose(1, 2).contiguous()
+
+        # -merge-> (B, S_q, D_o)
+        out = merge_last(out, 2)
+
+        if self.use_proj_c:
             out = out + c
 
         return out
@@ -258,7 +300,7 @@ class Transformer(nn.Module):
 
         self.n_layers = cfg.n_layers
         self._attn = MultiHeadedSelfAttention(cfg.size, cfg.size, cfg.size,
-                                              cfg.n_heads)
+                                              cfg.size, cfg.n_heads)
         self._proj = nn.Linear(cfg.size, cfg.size)
         self._norm1 = LayerNorm(cfg.size)
         self._pwff = PositionWiseFeedForward(cfg)
@@ -268,7 +310,7 @@ class Transformer(nn.Module):
         # NOTE to self, masking may be useful...
         for _ in range(self.n_layers):
             prev_layer = h
-            h = self._attn(h)
+            h = self._attn(h, h)
             h = self._norm1(prev_layer + self._proj(h))
             h = self._norm2(h + self._pwff(h))
 
@@ -312,8 +354,10 @@ class SeqToImageStart(nn.Module):
         self._attn = MultiHeadedSelfAttention(self.cfg.seq_size,
                                               self.cfg.start_ch,
                                               self.cfg.start_ch,
+                                              self.cfg.start_ch,
                                               n_heads,
-                                              query_is_input=True)
+                                              input_is_query=True,
+                                              use_proj_c=False)
 
     def forward(self, x, y=None):
         # Uses average and count to produce query
@@ -489,70 +533,21 @@ class ImageToSeq(nn.Module):
         super().__init__()
 
         self.cfg = cfg
-
-        self._pool = nn.AdaptiveMaxPool2d(1)
-
-        # roughly, this layer is multi headed attention with a weight
-        self._proj_k = nn.Conv2d(self.cfg.image_ch,
-                                 self.cfg.seq_size,
-                                 kernel_size=1)
-        self._proj_v = nn.Conv2d(self.cfg.image_ch,
-                                 self.cfg.seq_size,
-                                 kernel_size=1)
-
-        self._proj_q = nn.Linear(self.cfg.seq_size, self.cfg.seq_size)
-
-        self._overall_gain = nn.Parameter(
-            torch.Tensor(1, self.cfg.n_heads, 1, 1))
-        self._overall_bias = nn.Parameter(
-            torch.Tensor(1, self.cfg.n_heads, 1, 1))
-
-        self.reset_parameters()
-
-    def reset_parameters(self):
-        nn.init.ones_(self._overall_gain)
-        nn.init.constant_(self._overall_bias, -10.0)
+        self._attn = MultiHeadedSelfAttention(self.cfg.image_ch,
+                                              self.cfg.seq_size,
+                                              self.cfg.seq_size,
+                                              self.cfg.seq_size,
+                                              self.cfg.n_heads,
+                                              is_cross_attn=True)
 
     # x is seq (BS x D), y is image type data (B x C x H x W)
     def forward(self, x, y):
-        # NCHW -> N x H*W x C
-        k = width_to_seq(self._proj_k(y))
-        v = width_to_seq(self._proj_v(y))
-
-        # (B x S x D) -proj-> (B x S x D)
-        q = self._proj_q(x)
-
-        # (B x S x D) -split-> (B x S x H x W)
-        x, q, k, v = (split_last(x, (self.cfg.n_heads, -1))
-                      for x in [x, q, k, v])
-
-        # (B, S, H, W) -transpose-> (B, H, S, W)
-        x, q, k, v = (x.transpose(1, 2) for x in [x, q, k, v])
-
-        # (B, H, S, WK) @ (B, H, WK, H*W) -> (B, H, S, H*W)
-        scores = (q @ k.transpose(-2, -1)) / np.sqrt(k.size(-1))
-
-        # (B, H, S, H*W) -> (B, H, 1, 1)
-        pooled_scores = self._pool(scores)
-
-        overall_weight = torch.sigmoid(pooled_scores * self._overall_gain +
-                                       self._overall_bias)
-        scores = F.softmax(scores, dim=-1)
-        h = scores @ v
-
-        # *(1 - overall_weight) probably not important - maybe even bad
-        out = x * (1 - overall_weight) + h * overall_weight
-
-        # (B, H, S, WV) -trans-> (B, S, H, WV)
-        out = out.transpose(1, 2).contiguous()
-        # -merge-> (B, S, D)
-        out = merge_last(out, 2)
-
-        return out
+        return self._attn(width_to_seq(y), x)
 
 
 SeqToImageCfg = collections.namedtuple(
-    'SeqToImageCfg', ['image_ch', 'seq_size', 'output_ch', 'n_heads'])
+    'SeqToImageCfg',
+    ['image_ch', 'seq_size', 'output_ch', 'n_heads', 'add_all_ch'])
 
 
 class SeqToImage(nn.Module):
@@ -565,32 +560,30 @@ class SeqToImage(nn.Module):
                                  self.cfg.output_ch,
                                  kernel_size=1)
         self._attn = MultiHeadedSelfAttention(self.cfg.seq_size,
+                                              self.cfg.image_ch,
                                               self.cfg.output_ch,
                                               self.cfg.output_ch,
                                               self.cfg.n_heads,
-                                              query_is_input=True)
+                                              use_proj_c=False,
+                                              is_cross_attn=self.cfg.add_all_ch)
 
     # x is seq (B x S x D), y is image type data (B x C x H x W)
     def forward(self, x, y):
-        q = self._proj_q(y)
-
         batch_size = y.size(0)
         height = y.size(2)
         width = y.size(3)
         image_size = height * width
 
-        # to NHWC
-        q = q.permute(0, 2, 3, 1)
-
-        q = q.view(batch_size, image_size, -1)
+        y_seq = width_to_seq(y)
 
         # attention is applied elementwise to "pixels" (similar to global
         # attention from AttnNet - just implementation differences)
-        added_values = self._attn(x, q)
-        added_values = added_values.permute(0, 2, 1)
-        added_values = added_values.view(batch_size, -1, height, width)
+        added_values = seq_to_width(self._attn(x, y_seq), width)
 
-        return torch.cat((y, added_values), dim=1)
+        if self.cfg.add_all_ch:
+            return y + added_values
+        else:
+            return torch.cat((y, added_values), dim=1)
 
 
 # A non-local block as used in SA-GAN

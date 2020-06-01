@@ -24,8 +24,16 @@ class Net(nn.Module):
         self._input_expand = nn.Linear(self._global_args.input_size,
                                        self._global_args.seq_size)
 
+
+        def get_block(constructor, use, *args):
+            if use:
+                return constructor(*args)
+            else:
+                return None
+
         # linear block
-        self._base_transformer = Transformer(
+        self._base_transformer = get_block(
+            Transformer, self._global_args.use_base_transformer,
             self._global_args.base_transformer_args())
         self._seq_to_image_start = SeqToImageStart(
             self._global_args.seq_to_image_start_args())
@@ -41,12 +49,6 @@ class Net(nn.Module):
             input_ch = block_args.input_ch
             output_ch = block_args.output_ch
 
-            def get_block(constructor, args, use):
-                if use:
-                    return constructor(args)
-                else:
-                    return None
-
             for repeat_num in range(block_args.num_repeat):
                 block_args.next_block()
 
@@ -54,14 +56,14 @@ class Net(nn.Module):
                 self._image_blocks.append(
                     MBConvGBlock(block_args.mbconv_args()))
                 self._image_to_seq_blocks.append(
-                    get_block(ImageToSeq, block_args.image_to_seq_args(),
-                              block_args.use_image_to_seq_this_block))
+                    get_block(ImageToSeq, block_args.use_image_to_seq_this_block,
+                              block_args.image_to_seq_args()))
                 self._seq_blocks.append(
-                    get_block(Transformer, block_args.transformer_args(),
-                              block_args.use_seq_this_block))
+                    get_block(Transformer, block_args.use_seq_this_block,
+                              block_args.transformer_args()))
                 self._seq_to_image_blocks.append(
-                    get_block(SeqToImage, block_args.seq_to_image_args(),
-                              block_args.use_seq_to_image_this_block))
+                    get_block(SeqToImage, block_args.use_seq_to_image_this_block,
+                              block_args.seq_to_image_args()))
 
             if i == self._global_args.nonlocal_index - 1:
                 self._attention_index = len(self._image_blocks) - 1
@@ -91,13 +93,17 @@ class Net(nn.Module):
         """
         self._swish = MemoryEfficientSwish() if memory_efficient else Swish()
 
-        self._base_transformer.set_swish(memory_efficient)
+        def block_set_swish(block):
+            if block is not None:
+                block.set_swish(memory_efficient)
+
+        block_set_swish(self._base_transformer)
 
         for block in self._image_blocks:
-            block.set_swish(memory_efficient)
+            block_set_swish(block)
 
         for block in self._seq_blocks:
-            block.set_swish(memory_efficient)
+            block_set_swish(block)
 
     def forward(self, inputs):
         """
@@ -113,7 +119,8 @@ class Net(nn.Module):
         # consider layernorm here...
         seq = self._swish(self._input_expand(inputs))
 
-        seq = self._base_transformer(seq)
+        if self._base_transformer is not None:
+            seq = self._base_transformer(seq)
         image = self._seq_to_image_start(seq)
 
         position_ch = get_position_ch(self._global_args.start_width,

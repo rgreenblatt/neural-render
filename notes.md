@@ -98,7 +98,9 @@ Carried over from before:
  - "intersection" modules/activation
 
 
-Implemented better system for lr (I think). Now running with MANY more epochs.
+Implemented better system for lr (I think). Now running with MANY more epochs
+(200).
+
 For previous runs:
 
 standard_run: no SeqToImage or seq blocks
@@ -113,4 +115,20 @@ just_seq_blocks: just seq blocks
 improve_seq_half_lr: same as new_improve_seq but with half lr (95% sure, but
 this might actually just be an old run)
 
+2020-06-01 11:23
 
+Looks like big runs will converge to a satisfactory degree - this
+is probably near the correct full convergence learning schedule.
+I think 100 epoch training should be sufficient for experiments.
+ImageToSeq is definitely very effective. Outputs now look pretty good -
+specular highlights are showing up and spheres look pretty crisp.
+Background not as good as I would expect.
+
+To try/TODO:
+  - List from before (yesterday)
+  - Dropout (on seq blocks) and other regularization
+  - Different seq blocks/more residual blocks somehow
+
+2020-06-01 12:53
+
+There was a bug in ImageToSeq involving the pooling.
