@@ -70,11 +70,11 @@ specifically would cause this. Right now, we use separate channels for
 SeqToImage and BN is directly applied to this. Seems related but hard to see
 how.
 
-I am now concerned that these results might just come down to faster learning
-(as opposed to better converged accuracy). We aren't currently fully converging
-and there is a difference in the level of convergence. I think way more
-epochs are required and that cos annealing is a better idea.
-We need more principled approach to LR.
+I am now (a little) concerned that these results might just come down to faster
+learning (as opposed to better converged accuracy). We aren't currently fully
+converging and there is a difference in the level of convergence. I think way
+more epochs are required and that cos annealing is a better idea.  We need more
+principled approach to LR.
 
 To try/TODO:
  - Make background black and switch to RELU output activation.
@@ -96,4 +96,21 @@ To try/TODO:
 Carried over from before:
  - better strategies for attention
  - "intersection" modules/activation
+
+
+Implemented better system for lr (I think). Now running with MANY more epochs.
+For previous runs:
+
+standard_run: no SeqToImage or seq blocks
+
+just_image_to_seq: just SeqToImage
+
+new_improve_seq: SeqToImage and seq blocks, but with initialization change
+(negative bias)
+
+just_seq_blocks: just seq blocks
+
+improve_seq_half_lr: same as new_improve_seq but with half lr (95% sure, but
+this might actually just be an old run)
+
 
