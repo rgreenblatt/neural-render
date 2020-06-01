@@ -17,8 +17,7 @@ from apex import amp
 from model import Net
 from load_data import load_dataset
 from arch import net_params
-from utils import (mkdirs, PiecewiseLinear, linear_to_srgb, LossTracker,
-                   ImageTracker)
+from utils import (mkdirs, LRSched, linear_to_srgb, LossTracker, ImageTracker)
 from criterion import PerceptualLoss
 
 
@@ -26,6 +25,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--lr-multiplier', type=float, default=1.0)
     parser.add_argument('--batch-size', type=int, default=16)
+    parser.add_argument('--epoches', type=int, default=100)
     parser.add_argument('--resolution', type=int, default=128)
     parser.add_argument('--valid-split-seed', type=int, default=0)
     parser.add_argument('--train-images-to-save', type=int, default=64)
@@ -39,7 +39,6 @@ def main():
     parser.add_argument('--name', required=True)
     parser.add_argument('--norm-style', default='bn')
     parser.add_argument('--max-ch', type=int, default=256)
-    # parser.add_argument('--epoches', type=int, default=20)
     parser.add_argument('--no-cudnn-benchmark', action='store_true')
     parser.add_argument('--local_rank', type=int, default=0)
     parser.add_argument('--opt-level', default='O1')
@@ -223,17 +222,9 @@ def main():
     else:
         criterion = PerceptualLoss().to(device)
 
-    epoches = 50
-    # epoch_mark_0 = 20
-    # epoch_mark_1 = 40
-    # epoch_mark_2 = 60
-    # TODO: make this more configurable
-    lr_schedule = PiecewiseLinear([
-        (0, 5e-5),
-        (4, 1e-4),
-        (35, 5e-6),
-        (50, 1e-7),
-    ])
+    factor = 2e-6
+    scaled_lr = args.lr_multiplier * batch_size * args.world_size * factor
+    lr_schedule = LRSched(scaled_lr, args.epoches)
 
     if not disable_all_output:
         output_dir = "outputs/{}/".format(args.name)
@@ -262,7 +253,7 @@ def main():
 
     world_batch_size = batch_size * args.world_size
 
-    for epoch in range(epoches):
+    for epoch in range(args.epoches):
         epoch_callback(epoch)
 
         net.train()

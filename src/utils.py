@@ -156,3 +156,59 @@ class ImageTracker():
         self.images = None
 
         return cpu_images
+
+
+class CosineDecay():
+    def __init__(self, start_x, start_y, end_x, end_y):
+        super().__init__()
+
+        self.scale = (start_y - end_y) / 2.0
+        self.shift = end_y + self.scale
+        self.scale_inner = math.pi / (end_x - start_x)
+        self.shift_inner = -start_x
+
+    def __call__(self, x):
+        return math.cos((x + self.shift_inner) *
+                        self.scale_inner) * self.scale + self.shift
+
+
+class LRSched():
+    def __init__(self,
+                 lr_max,
+                 epochs,
+                 start_div_factor=4.0,
+                 pct_start=0.1,
+                 final_div_factor=None):
+        start_lr = lr_max / start_div_factor
+        if final_div_factor is None:
+            final_lr = 0.0
+        else:
+            final_lr = lr_max / final_div_factor
+        self.decay_start_epoch = int(pct_start * epochs)
+
+        self.linear_part = PiecewiseLinear([(0, start_lr),
+                                            (self.decay_start_epoch, lr_max)])
+        self.cos_part = CosineDecay(self.decay_start_epoch, lr_max, epochs,
+                                    final_lr)
+
+    def __call__(self, epoch):
+        if epoch <= self.decay_start_epoch:
+            return self.linear_part(epoch)
+        else:
+            return self.cos_part(epoch)
+
+if __name__ == "__main__":
+    epochs = 100
+    sched = LRSched(100, epochs)
+
+    import matplotlib.pyplot as plt
+
+    x = []
+    y = []
+
+    for i in range(epochs):
+        x.append(i)
+        y.append(sched(i))
+
+    plt.plot(x, y)
+    plt.show()
