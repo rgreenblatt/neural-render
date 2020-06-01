@@ -25,7 +25,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--lr-multiplier', type=float, default=1.0)
     parser.add_argument('--batch-size', type=int, default=16)
-    parser.add_argument('--epoches', type=int, default=100)
+    parser.add_argument('--epoches', type=int, default=200)
     parser.add_argument('--resolution', type=int, default=128)
     parser.add_argument('--valid-split-seed', type=int, default=0)
     parser.add_argument('--train-images-to-save', type=int, default=64)
