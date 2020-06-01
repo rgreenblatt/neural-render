@@ -274,8 +274,8 @@ def main():
         def train_display():
             train_loss = train_loss_tracker.query_reset()
             if not disable_all_output:
-                print("{}, epoch {}, step {}/{}, train loss {:.4e}".format(
-                    datetime.datetime.now(), epoch,
+                print("{}, epoch {}/{}, step {}/{}, train loss {:.4e}".format(
+                    datetime.datetime.now(), epoch, args.epoches - 1,
                     str(i * world_batch_size).zfill(format_len),
                     max_train_step, train_loss))
                 writer.add_scalar("loss/train", train_loss, step)
@@ -343,8 +343,9 @@ def main():
 
         test_loss = test_loss_tracker.query_reset()
         if not disable_all_output:
-            print("{}, epoch {}, lr {:.4e}, test loss {:.4e}".format(
-                datetime.datetime.now(), epoch, lr, test_loss))
+            print("{}, epoch {}/{}, lr {:.4e}, test loss {:.4e}".format(
+                datetime.datetime.now(), epoch, args.epoches - 1, lr,
+                test_loss))
 
             actual_images_train = actual_images_train.query_reset()
             output_images_train = output_images_train.query_reset()
