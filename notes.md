@@ -70,6 +70,12 @@ specifically would cause this. Right now, we use separate channels for
 SeqToImage and BN is directly applied to this. Seems related but hard to see
 how.
 
+I am now concerned that these results might just come down to faster learning
+(as opposed to better converged accuracy). We aren't currently fully converging
+and there is a difference in the level of convergence. I think way more
+epochs are required and that cos annealing is a better idea.
+We need more principled approach to LR.
+
 To try/TODO:
  - Make background black and switch to RELU output activation.
  - Eliminate input transformer
@@ -85,6 +91,8 @@ To try/TODO:
  - Is staggering/interlacing actually improving efficiency?
  - How should the model be scaled up (ch multiplier, depth multiplier, seq
    size multiplier)?
+ - I think lr schedule isn't ideal. We aren't converging right now. I think this
+   is because the decay phase needs to be at a higher learning rate.*** 
 Carried over from before:
  - better strategies for attention
  - "intersection" modules/activation
