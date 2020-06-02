@@ -39,6 +39,8 @@ def main():
     parser.add_argument('--name', required=True)
     parser.add_argument('--norm-style', default='bn')
     parser.add_argument('--max-ch', type=int, default=256)
+    parser.add_argument('--initial-attn-ch', type=int, default=128)
+    parser.add_argument('--seq-size', type=int, default=512)
     parser.add_argument('--no-cudnn-benchmark', action='store_true')
     parser.add_argument('--local_rank', type=int, default=0)
     parser.add_argument('--opt-level', default='O1')
@@ -63,6 +65,7 @@ def main():
     parser.add_argument('--no-base-transformer', action='store_true')
     parser.add_argument('--only-descending-ch', action='store_true')
     parser.add_argument('--add-seq-to-image', action='store_true')
+
 
     args = parser.parse_args()
 
@@ -154,8 +157,8 @@ def main():
 
     blocks_args, global_args = net_params(
         input_size=input_size,
-        seq_size=512,
-        initial_attn_ch=128,
+        seq_size=args.seq_size,
+        initial_attn_ch=args.initial_attn_ch,
         output_width=img_width,
         max_ch=args.max_ch,
         norm_style=args.norm_style,

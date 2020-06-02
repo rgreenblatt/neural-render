@@ -190,7 +190,8 @@ def net_params(input_size,
     blocks_args = []
 
     if only_descending_ch:
-        raise NotImplementedError()
+        start_ch = max_ch
+        increase_upsamples = 0
 
     ch_before = start_ch
 
