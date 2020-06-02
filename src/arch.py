@@ -165,6 +165,7 @@ def net_params(
     only_descending_ch=False,
     add_seq_to_image=False,
     add_seq_to_image_mix_bias=-10.0,
+    base_transformer_n_layers=4,
 ):
     """Create BlockArgs and GlobalParams
 
@@ -204,6 +205,7 @@ def net_params(
             ch_after = ch_before + ch_per_increase
         else:
             ch_after = ch_before / chan_reduce_multiplier
+            attn_ch /= chan_reduce_multiplier
 
         input_ch = round(ch_before)
         output_ch = round(ch_after)
@@ -242,9 +244,6 @@ def net_params(
                 add_seq_to_image_mix_bias=add_seq_to_image_mix_bias,
             ))
 
-        if i >= increase_upsamples:
-            attn_ch /= chan_reduce_multiplier
-
         ch_before = ch_after
 
     global_args = GlobalArgs(
@@ -253,7 +252,7 @@ def net_params(
         input_size=input_size,
         seq_size=seq_size,
         base_transformer_n_heads=8,
-        base_transformer_n_layers=4,
+        base_transformer_n_layers=base_transformer_n_layers,
         nonlocal_index=nonlocal_index,
         start_ch=round(start_ch),
         ch_per_head=start_ch_per_head,
