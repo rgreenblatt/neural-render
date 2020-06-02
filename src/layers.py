@@ -581,7 +581,7 @@ class SeqToImage(nn.Module):
         added_values = seq_to_width(self._attn(x, y_seq), width)
 
         if self.cfg.add_all_ch:
-            return y + added_values
+            return added_values
         else:
             return torch.cat((y, added_values), dim=1)
 
