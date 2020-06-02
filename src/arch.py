@@ -64,6 +64,7 @@ _BlockArgsParams = collections.namedtuple('BlockArgsParams', [
     'use_image_to_seq',
     'use_seq_block',
     'add_seq_to_image',
+    'add_seq_to_image_mix_bias'
 ])
 
 
@@ -137,30 +138,34 @@ class BlockArgs(_BlockArgsParams):
                              seq_size=self.seq_size,
                              output_ch=self.attn_output_ch,
                              n_heads=self.image_n_heads,
-                             add_all_ch=self.add_seq_to_image)
+                             add_all_ch=self.add_seq_to_image,
+                             mix_bias=self.add_seq_to_image_mix_bias)
 
 
-def net_params(input_size,
-               seq_size,
-               output_width,
-               initial_attn_ch,
-               ch_coefficient=1.0,
-               depth_coefficient=1.0,
-               start_width=4,
-               non_local_width=64,
-               start_ch=128,
-               start_ch_per_head=32,
-               max_ch=512,
-               chan_reduce_multiplier=2,
-               norm_style='bn',
-               show_info=True,
-               use_seq_to_image=True,
-               use_image_to_seq=True,
-               use_seq_block=False,
-               checkpoint_conv=False,
-               use_base_transformer=True,
-               only_descending_ch=False,
-               add_seq_to_image=False):
+def net_params(
+    input_size,
+    seq_size,
+    output_width,
+    initial_attn_ch,
+    ch_coefficient=1.0,
+    depth_coefficient=1.0,
+    start_width=4,
+    non_local_width=64,
+    start_ch=128,
+    start_ch_per_head=32,
+    max_ch=512,
+    chan_reduce_multiplier=2,
+    norm_style='bn',
+    show_info=True,
+    use_seq_to_image=True,
+    use_image_to_seq=True,
+    use_seq_block=False,
+    checkpoint_conv=False,
+    use_base_transformer=True,
+    only_descending_ch=False,
+    add_seq_to_image=False,
+    add_seq_to_image_mix_bias=-10.0,
+):
     """Create BlockArgs and GlobalParams
 
     Args:
@@ -234,6 +239,7 @@ def net_params(input_size,
                 use_image_to_seq=use_image_to_seq,
                 use_seq_block=use_seq_block,
                 add_seq_to_image=add_seq_to_image,
+                add_seq_to_image_mix_bias=add_seq_to_image_mix_bias,
             ))
 
         if i >= increase_upsamples:

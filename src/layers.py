@@ -145,13 +145,15 @@ class MultiHeadedSelfAttention(nn.Module):
                  n_heads,
                  is_cross_attn=False,
                  use_proj_c=True,
-                 input_is_query=False):
+                 input_is_query=False,
+                 mix_bias=-10.0):
         super().__init__()
 
         self.is_cross_attn = is_cross_attn
         self.use_proj_c = use_proj_c and not self.is_cross_attn
         self.input_is_query = input_is_query
         self.output_size = output_size
+        self.mix_bias = mix_bias
 
         self._proj_k = nn.Linear(value_input_size, key_size)
         self._proj_v = nn.Linear(value_input_size, output_size)
@@ -176,8 +178,7 @@ class MultiHeadedSelfAttention(nn.Module):
     def reset_parameters(self):
         if self.is_cross_attn:
             nn.init.ones_(self._overall_gain)
-            # This -10.0 might be very wrong...
-            nn.init.constant_(self._overall_bias, -10.0)
+            nn.init.constant_(self._overall_bias, self.mix_bias)
 
     def forward(self, pre_value_key, pre_query):
         """
@@ -551,7 +552,7 @@ class ImageToSeq(nn.Module):
 
 SeqToImageCfg = collections.namedtuple(
     'SeqToImageCfg',
-    ['image_ch', 'seq_size', 'output_ch', 'n_heads', 'add_all_ch'])
+    ['image_ch', 'seq_size', 'output_ch', 'n_heads', 'add_all_ch', 'mix_bias'])
 
 
 class SeqToImage(nn.Module):
@@ -569,7 +570,8 @@ class SeqToImage(nn.Module):
                                               self.cfg.output_ch,
                                               self.cfg.n_heads,
                                               use_proj_c=False,
-                                              is_cross_attn=self.cfg.add_all_ch)
+                                              is_cross_attn=self.cfg.add_all_ch,
+                                              mix_bias=self.cfg.mix_bias)
 
     # x is seq (B x S x D), y is image type data (B x C x H x W)
     def forward(self, x, y):

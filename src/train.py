@@ -65,6 +65,8 @@ def main():
     parser.add_argument('--no-base-transformer', action='store_true')
     parser.add_argument('--only-descending-ch', action='store_true')
     parser.add_argument('--add-seq-to-image', action='store_true')
+    parser.add_argument('--add-seq-to-image-mix-bias', type=float, default=-10.0)
+
 
 
     args = parser.parse_args()
@@ -170,6 +172,7 @@ def main():
         use_base_transformer=not args.no_base_transformer,
         only_descending_ch=args.only_descending_ch,
         add_seq_to_image=args.add_seq_to_image,
+        add_seq_to_image_mix_bias=args.add_seq_to_image_mix_bias,
     )
 
     net = Net(blocks_args, global_args)
