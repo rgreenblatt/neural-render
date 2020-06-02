@@ -133,13 +133,9 @@ class BlockArgs(_BlockArgsParams):
                               hidden_ff_size=self.seq_size * 4)
 
     def seq_to_image_args(self):
-        if self.add_seq_to_image:
-            output_ch = self.output_ch_conv
-        else:
-            output_ch = self.attn_output_ch
         return SeqToImageCfg(image_ch=self.output_ch_conv,
                              seq_size=self.seq_size,
-                             output_ch=output_ch,
+                             output_ch=self.attn_output_ch,
                              n_heads=self.image_n_heads,
                              add_all_ch=self.add_seq_to_image)
 
@@ -203,7 +199,6 @@ def net_params(input_size,
             ch_after = ch_before + ch_per_increase
         else:
             ch_after = ch_before / chan_reduce_multiplier
-            attn_ch /= chan_reduce_multiplier
 
         input_ch = round(ch_before)
         output_ch = round(ch_after)
@@ -240,6 +235,9 @@ def net_params(input_size,
                 use_seq_block=use_seq_block,
                 add_seq_to_image=add_seq_to_image,
             ))
+
+        if i >= increase_upsamples:
+            attn_ch /= chan_reduce_multiplier
 
         ch_before = ch_after
 

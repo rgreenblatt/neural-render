@@ -151,6 +151,7 @@ class MultiHeadedSelfAttention(nn.Module):
         self.is_cross_attn = is_cross_attn
         self.use_proj_c = use_proj_c and not self.is_cross_attn
         self.input_is_query = input_is_query
+        self.output_size = output_size
 
         self._proj_k = nn.Linear(value_input_size, key_size)
         self._proj_v = nn.Linear(value_input_size, output_size)
@@ -162,7 +163,6 @@ class MultiHeadedSelfAttention(nn.Module):
         self.n_heads = n_heads
 
         if self.is_cross_attn:
-            assert query_input_size == output_size
             self._overall_gain = nn.Parameter(
                 torch.Tensor(1, self.n_heads, 1, 1))
             self._overall_bias = nn.Parameter(
@@ -230,7 +230,7 @@ class MultiHeadedSelfAttention(nn.Module):
 
         if self.is_cross_attn:
             # (B, S_q, D_o) -split + trans-> (B, H, S_q, W_o)
-            pq_split = split_last(pre_query,
+            pq_split = split_last(pre_query[:,:,:self.output_size],
                                   (self.n_heads, -1)).transpose(1, 2)
             out = pq_split * (1 - overall_weight) + h * overall_weight
         else:
@@ -241,6 +241,10 @@ class MultiHeadedSelfAttention(nn.Module):
 
         # -merge-> (B, S_q, D_o)
         out = merge_last(out, 2)
+
+        if self.is_cross_attn:
+            # add remaining ch
+            out = torch.cat((out, pre_query[:,:,self.output_size:]), dim=2)
 
         if self.use_proj_c:
             out = out + c
