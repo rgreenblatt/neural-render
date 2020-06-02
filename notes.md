@@ -156,3 +156,20 @@ big_new_run: Same as just-image-to-seq_big, but 100 epochs only and bug fixed.
 
 add_seq_to_image_quarter_lr: add_seq_to_image diverged, so I changed learning
 rates to be 1/4.
+
+add_seq_to_image_fixed: Apparently there was a bug where the value for cross
+attention was added in twice. This run has it fixed. Apparently that
+caused the divergence (which is a bit interesting, in theory,
+weights should have been able to adapt pretty well to this situation).
+
+
+Runs (2020-06-1 part_2):
+
+only_descending_ch: run with only_descending_ch (half at each step rather
+than increasing initially) and 1024 starting channels  with 256 starting
+attn ch (initial-attn-ch set to 512). I had to lower batch size and
+this is a decent amount slower. 
+
+no_base_transformer: removed base transformer to see if it is important.
+
+
