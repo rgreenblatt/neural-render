@@ -66,7 +66,11 @@ def main():
     parser.add_argument('--only-descending-ch', action='store_true')
     parser.add_argument('--add-seq-to-image', action='store_true')
     parser.add_argument('--add-seq-to-image-mix-bias', type=float, default=-10.0)
-    parser.add_argument('--base-transformer-n-layers', type=int, default=4)
+    parser.add_argument('--add-image-to-seq-mix-bias', type=float, default=-10.0)
+    # ALSO TODO: no parameter sharing
+    parser.add_argument('--base-transformer-n-layers', type=int, default=1)
+    parser.add_argument('--seq-transformer-n-layers', type=int, default=1)
+    parser.add_argument('--full-attn-ch', action='store_true')
 
 
 
@@ -174,7 +178,10 @@ def main():
         only_descending_ch=args.only_descending_ch,
         add_seq_to_image=args.add_seq_to_image,
         add_seq_to_image_mix_bias=args.add_seq_to_image_mix_bias,
+        add_image_to_seq_mix_bias=args.add_image_to_seq_mix_bias,
         base_transformer_n_layers=args.base_transformer_n_layers,
+        seq_transformer_n_layers=args.seq_transformer_n_layers,
+        full_attn_ch=args.full_attn_ch
     )
 
     net = Net(blocks_args, global_args)

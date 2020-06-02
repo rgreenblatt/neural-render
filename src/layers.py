@@ -530,7 +530,8 @@ class MBConvGBlock(nn.Module):
 
 
 ImageToSeqCfg = collections.namedtuple('ImageToSeqCfg',
-                                       ['image_ch', 'seq_size', 'n_heads'])
+                                       ['image_ch', 'seq_size',
+                                        'n_heads','mix_bias'])
 
 
 class ImageToSeq(nn.Module):
@@ -543,7 +544,8 @@ class ImageToSeq(nn.Module):
                                               self.cfg.seq_size,
                                               self.cfg.seq_size,
                                               self.cfg.n_heads,
-                                              is_cross_attn=True)
+                                              is_cross_attn=True,
+                                              mix_bias=self.cfg.mix_bias)
 
     # x is seq (BS x D), y is image type data (B x C x H x W)
     def forward(self, x, y):

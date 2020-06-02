@@ -64,7 +64,8 @@ _BlockArgsParams = collections.namedtuple('BlockArgsParams', [
     'use_image_to_seq',
     'use_seq_block',
     'add_seq_to_image',
-    'add_seq_to_image_mix_bias'
+    'add_seq_to_image_mix_bias',
+    'add_image_to_seq_mix_bias',
 ])
 
 
@@ -124,7 +125,8 @@ class BlockArgs(_BlockArgsParams):
         # n_heads could be configured further
         return ImageToSeqCfg(image_ch=self.output_ch_conv,
                              seq_size=self.seq_size,
-                             n_heads=self.seq_n_heads)
+                             n_heads=self.seq_n_heads,
+                             mix_bias=self.add_image_to_seq_mix_bias)
 
     def transformer_args(self):
         # hidden_ff_size could be configured further
@@ -165,7 +167,10 @@ def net_params(
     only_descending_ch=False,
     add_seq_to_image=False,
     add_seq_to_image_mix_bias=-10.0,
+    add_image_to_seq_mix_bias=-10.0,
     base_transformer_n_layers=4,
+    seq_transformer_n_layers=4,
+    full_attn_ch=False,
 ):
     """Create BlockArgs and GlobalParams
 
@@ -206,6 +211,8 @@ def net_params(
         else:
             ch_after = ch_before / chan_reduce_multiplier
             attn_ch /= chan_reduce_multiplier
+        if full_attn_ch and add_seq_to_image:
+            attn_ch = ch_after
 
         input_ch = round(ch_before)
         output_ch = round(ch_after)
@@ -231,7 +238,7 @@ def net_params(
                 seq_size=seq_size,
                 attn_output_ch=round(attn_ch),
                 seq_n_heads=8,
-                transformer_n_layers=2,
+                transformer_n_layers=seq_transformer_n_layers,
                 image_n_heads=2,
                 norm_style=norm_style,
                 # TODO: fix hack
@@ -242,6 +249,7 @@ def net_params(
                 use_seq_block=use_seq_block,
                 add_seq_to_image=add_seq_to_image,
                 add_seq_to_image_mix_bias=add_seq_to_image_mix_bias,
+                add_image_to_seq_mix_bias=add_image_to_seq_mix_bias,
             ))
 
         ch_before = ch_after
