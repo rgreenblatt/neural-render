@@ -172,4 +172,56 @@ this is a decent amount slower.
 
 no_base_transformer: removed base transformer to see if it is important.
 
+2020-06-02 20:05
 
+Interestingly, no_base_transformer eventually diverges. This happens somewhat
+after peak lr and appears to be related to mixed precision training.  I tried
+reducing lr slightly to prevent this (0.85 multiplier), but this still diverged
+at almost the same point in training.  Other than eventual sudden divergence,
+no_base_transformer was promising.  Then, I tried keeping the transformer, but
+with only one layer. This performs better than no base transformer and hasn't
+(yet) diverged. My current theory is that parameter sharing is a bust. For now,
+I will run with one layer, later I will try multiple layers, but with different
+parameters for each layer.  I think this may also extend to seq blocks, so I am
+trying some runs with 1 layer seq blocks.
+
+add_seq_to_image_fixed didn't diverged but performed poorly, so I tried
+restricting the channels which attn is added to. This resulting in almost the
+exact same result, making me suspect that the poor results are due to the attn
+having no effect. I further guessed this was because the initialization of
+the mix bias was too low. I changed the init from -10.0 (sigmoid -> 4.5e-05) to
+0.0 (sigmoid -> 0.5). This works very well (add_seq_to_image_mix_bias),
+and add_seq_to_image seems like the best approach. This run was done with
+a subset of the channels having attention added to them, but I am guessing that 
+adding attention to all channels is effective.
+
+only_descending_ch performed somewhat better, but was a bigger model. Thus, it
+isn't clear that this a better way to distribute computational resources.
+There are roughly three possible strategies I can think of:
+ - Steadily expand channels and then half channels every upsample
+ - Keep channels constant and then half channels every upsample
+ - Half channels every upsample from the start
+Big GAN cuts channels in half from the start for 128x128 but for higher
+resolution they add the additional block at the start with same channels as
+the block after it. This is the keep channels constant strategy, but
+with very few constant channels blocks. I have been using steady expand,
+but have tested the last strategy. One advantage of the last two stategies is
+that they keep computational load more consistant throughout the net.
+
+Runs (2020-06-02):
+
+add_seq_to_image_new: same as add_seq_to_image_fixed, but with attn on a subset
+of channels.
+
+add_seq_to_image_mix_bias: same as add_seq_to_image_new, but with a different
+initialization for the mix bias.
+
+no_base_transformer_reduced_lr: same as no_base_transformer, but with 0.85 lr
+multiplier. Still diverges.
+
+minimal_base_transformer: 1 layer base transformer.
+
+single_layer_transformer_and_add_all: 1 layer base transformer, 1 layer
+seq blocks (these have been disabled for most of previous runs),
+add_seq_to_image on all channels (not on a subset like in add_seq_to_image_new).
+Basically kitchen sink run.
