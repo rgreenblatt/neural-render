@@ -195,7 +195,10 @@ def main():
     net = net.to(device)
 
     # TODO: keep bn f32 arg?
-    net, optimizer = amp.initialize(net, optimizer, opt_level=args.opt_level)
+    net, optimizer = amp.initialize(net,
+                                    optimizer,
+                                    opt_level=args.opt_level,
+                                    min_loss_scale=128.0)
 
     if args.distributed:
         net = DistributedDataParallel(net)
