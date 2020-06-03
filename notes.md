@@ -225,3 +225,8 @@ single_layer_transformer_and_add_all: 1 layer base transformer, 1 layer
 seq blocks (these have been disabled for most of previous runs),
 add_seq_to_image on all channels (not on a subset like in add_seq_to_image_new).
 Basically kitchen sink run.
+
+Random divergence strikes again!!! Again at about the same batch. Symptoms are
+continuous gradient overflow and then eventually loss scale going to zero.
+Set min loss scale of 128 - hopefully this will solve the issue and previous
+tests can be rerun...

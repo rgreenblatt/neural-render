@@ -64,9 +64,9 @@ def main():
     parser.add_argument('--checkpoint-conv', action='store_true')
     parser.add_argument('--no-base-transformer', action='store_true')
     parser.add_argument('--only-descending-ch', action='store_true')
-    parser.add_argument('--add-seq-to-image', action='store_true')
-    parser.add_argument('--add-seq-to-image-mix-bias', type=float, default=-10.0)
-    parser.add_argument('--add-image-to-seq-mix-bias', type=float, default=-10.0)
+    parser.add_argument('--no-add-seq-to-image', action='store_true')
+    parser.add_argument('--add-seq-to-image-mix-bias', type=float, default=0.0)
+    parser.add_argument('--add-image-to-seq-mix-bias', type=float, default=-2.0)
     # ALSO TODO: no parameter sharing
     parser.add_argument('--base-transformer-n-layers', type=int, default=1)
     parser.add_argument('--seq-transformer-n-layers', type=int, default=1)
@@ -176,7 +176,7 @@ def main():
         checkpoint_conv=args.checkpoint_conv,
         use_base_transformer=not args.no_base_transformer,
         only_descending_ch=args.only_descending_ch,
-        add_seq_to_image=args.add_seq_to_image,
+        add_seq_to_image=not args.no_add_seq_to_image,
         add_seq_to_image_mix_bias=args.add_seq_to_image_mix_bias,
         add_image_to_seq_mix_bias=args.add_image_to_seq_mix_bias,
         base_transformer_n_layers=args.base_transformer_n_layers,
