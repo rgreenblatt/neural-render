@@ -240,5 +240,25 @@ image_to_seq block is critical (removing block vastly increases test loss,
 ~5.7e-4 -> ~1.5e-3).
 
 I still can't get no_base_transformer to converge. Very bizarre. I will
-keep it for now. I think seq blocks should work but are overfitting. I might
-reintroduce seq blocks, but with some form of strong regularization.
+keep it for now. I also might try removing the base transformer and using fp32
+training (to see if that is worth the trouble).
+
+I think seq blocks should work but are overfitting. I might
+reintroduce seq blocks, but with some form of strong regularization
+(maybe dropout or a variant of stochastic depth).
+
+Some data was lost from compute going offline. I think
+single_layer_transformer_and_add_all performed pretty poorly. I also ran a
+version which was the same thing but with a subset of channels for attn.
+Both performed meh, indicating to me that current SOTA is
+SeqToImage (on subset of channels), ImageToSeq, no seq blocks,
+add attn (as opposed to concat), and channel structure isn't too important
+(strictly decreasing vs increasing then decreasing).
+
+One other thing I want to test is removing a linear block from SeqToImageStart
+(called _feat_to_output).
+
+Huh, seems like everything is diverging on the instance with 1080tis. Seems
+suspect. I think there may be some sort of underlying issue. For now I
+will kill that instance and rerun some of the experiments. I am putting these
+experiments in the "questionable_divergence" directory.

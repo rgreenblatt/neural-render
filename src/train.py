@@ -198,7 +198,7 @@ def main():
     net, optimizer = amp.initialize(net,
                                     optimizer,
                                     opt_level=args.opt_level,
-                                    min_loss_scale=1024.0)
+                                    min_loss_scale=65536.0)
 
     if args.distributed:
         net = DistributedDataParallel(net)
