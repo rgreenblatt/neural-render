@@ -66,7 +66,7 @@ def main():
     parser.add_argument('--only-descending-ch', action='store_true')
     parser.add_argument('--no-add-seq-to-image', action='store_true')
     parser.add_argument('--add-seq-to-image-mix-bias', type=float, default=0.0)
-    parser.add_argument('--add-image-to-seq-mix-bias', type=float, default=-2.0)
+    parser.add_argument('--add-image-to-seq-mix-bias', type=float, default=-7.0)
     # ALSO TODO: no parameter sharing
     parser.add_argument('--base-transformer-n-layers', type=int, default=1)
     parser.add_argument('--seq-transformer-n-layers', type=int, default=1)

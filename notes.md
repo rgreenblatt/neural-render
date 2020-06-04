@@ -262,3 +262,9 @@ Huh, seems like everything is diverging on the instance with 1080tis. Seems
 suspect. I think there may be some sort of underlying issue. For now I
 will kill that instance and rerun some of the experiments. I am putting these
 experiments in the "questionable_divergence" directory.
+
+The mix bias for ImageToSeq was too high in several previous experiments. I
+some tuning requried. Also, I am thinking a longer warm up pct might be
+better for training efficiency. TODO: get lr sched and mix bias exactly right.
+Then tune with/without transformer, sequence blocks, count of attn ch,
+overall ch count, sequence size etc...
