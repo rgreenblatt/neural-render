@@ -230,3 +230,15 @@ Random divergence strikes again!!! Again at about the same batch. Symptoms are
 continuous gradient overflow and then eventually loss scale going to zero.
 Set min loss scale of 128 - hopefully this will solve the issue and previous
 tests can be rerun...
+
+Min loss scale may help in some cases, hard to tell. However, it definitely
+doesn't fix divergence in all cases. I still can't train without the input
+transformer (at least without lowering learning rates). For now I will just
+accept that it must be used.
+
+image_to_seq block is critical (removing block vastly increases test loss,
+~5.7e-4 -> ~1.5e-3).
+
+I still can't get no_base_transformer to converge. Very bizarre. I will
+keep it for now. I think seq blocks should work but are overfitting. I might
+reintroduce seq blocks, but with some form of strong regularization.
