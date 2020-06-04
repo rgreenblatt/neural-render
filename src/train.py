@@ -286,7 +286,7 @@ def main():
 
         train_loss_tracker = LossTracker(reduce_tensor)
 
-        lr = args.lr_multiplier * lr_schedule(epoch)
+        lr = lr_schedule(epoch)
 
         for param_group in optimizer.param_groups:
             param_group['lr'] = lr
