@@ -308,7 +308,10 @@ def main():
             actual_images_train = ImageTracker()
             output_images_train = ImageTracker()
 
-        net.reset_running_stats()
+        if args.distributed:
+            net.module.reset_running_stats()
+        else:
+            net.reset_running_stats()
 
         for i, data in enumerate(train):
             inp = data['inp'].to(device)
