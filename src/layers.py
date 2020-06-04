@@ -28,7 +28,7 @@ def get_groupnorm_groups(num_ch, norm_style):
 
 
 # From big gan pytorch
-class configurable_norm(nn.Module):
+class ConfigurableNorm(nn.Module):
     def __init__(
         self,
         output_size,
@@ -79,6 +79,10 @@ class configurable_norm(nn.Module):
         if not self.input_gain_bias:
             nn.init.ones_(self.gain)
             nn.init.zeros_(self.bias)
+
+    def reset_running_stats(self):
+        if self.norm_style in ['bn', 'in']:
+            self.norm.reset_running_stats()
 
     def forward(self, x, gain=None, bias=None):
         out = self.norm(x)
@@ -420,7 +424,7 @@ class MBConvGBlock(nn.Module):
         # number of output channels
         oup = self.cfg.input_ch * self.cfg.expand_ratio
 
-        self.which_norm = functools.partial(configurable_norm,
+        self.which_norm = functools.partial(ConfigurableNorm,
                                             input_gain_bias=False,
                                             norm_style=cfg.norm_style)
 
@@ -527,6 +531,11 @@ class MBConvGBlock(nn.Module):
             memory_efficient (bool): Whether to use memory-efficient version of swish.
         """
         self._swish = MemoryEfficientSwish() if memory_efficient else Swish()
+
+    def reset_running_stats(self):
+        self._bn0.reset_running_stats()
+        self._bn1.reset_running_stats()
+        self._bn2.reset_running_stats()
 
 
 ImageToSeqCfg = collections.namedtuple('ImageToSeqCfg',

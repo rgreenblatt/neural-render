@@ -2,7 +2,7 @@ import torch
 from torch import nn
 
 from layers import (MBConvGBlock, Attention, Transformer, SeqToImageStart,
-                    SeqToImage, ImageToSeq, configurable_norm)
+                    SeqToImage, ImageToSeq, ConfigurableNorm)
 from utils import Swish, MemoryEfficientSwish, get_position_ch
 
 
@@ -71,7 +71,7 @@ class Net(nn.Module):
 
         self._swish = MemoryEfficientSwish()
 
-        self.output_bn = configurable_norm(
+        self.output_bn = ConfigurableNorm(
             last_ch,
             input_gain_bias=False,
             norm_style=self._global_args.norm_style)
@@ -104,6 +104,13 @@ class Net(nn.Module):
 
         for block in self._seq_blocks:
             block_set_swish(block)
+
+    def reset_running_stats(self):
+        self.output_bn.reset_running_stats()
+
+        for block in self._image_blocks:
+            block.reset_running_stats()
+
 
     def forward(self, inputs):
         """
