@@ -12,7 +12,7 @@ import numpy as np
 from torchvision.utils import make_grid
 from scipy.spatial.transform import Rotation as R
 from apex.parallel import DistributedDataParallel, convert_syncbn_model
-from apex import amp
+from apex import amp, optimizers
 
 from model import Net
 from load_data import load_dataset
@@ -190,7 +190,12 @@ def main():
     if args.distributed and not args.no_sync_bn:
         net = convert_syncbn_model(net)
 
-    optimizer = torch.optim.Adam(net.parameters(), lr=0.1, weight_decay=0.0)
+    if torch.cuda.is_available():
+        Adam = optimizers.FusedAdam
+    else:
+        Adam = torch.optim.Adam
+
+    optimizer = Adam(net.parameters(), lr=0.1, weight_decay=0.0)
 
     net = net.to(device)
 

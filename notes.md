@@ -268,3 +268,16 @@ some tuning requried. Also, I am thinking a longer warm up pct might be
 better for training efficiency. TODO: get lr sched and mix bias exactly right.
 Then tune with/without transformer, sequence blocks, count of attn ch,
 overall ch count, sequence size etc...
+
+Increasing seq size makes learning smoother, but otherwise doesn't seem to
+have much effect. I have tuned the bias to -7.0 which seems pretty successful.
+Some runs were executed with -5.0 and this can sometimes work (value is pretty
+sensitive).  When no_base_transformer diverges, the core issue seems to be 
+something with bn (train converges and test outputs all black). To hopefully
+address this issue, we now reset the running stats at the start of each
+epoch. I will rerun the no_base_transformer test (for the 40th time oof).
+I am pretty happy with -7.0 mix bias and current lr schedule (assuming
+things keep converging). Direct next steps:
+ - retest adding seq blocks.
+ - retest remove base transformer
+ - save all run settings in tensorboard (all args + commit hash)
