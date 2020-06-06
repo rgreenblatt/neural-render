@@ -82,6 +82,7 @@ class Net(nn.Module):
 
         negative_allowance = 0.05
 
+        # CELU might be a good choice...
         self._output_activation = nn.CELU(alpha=negative_allowance)
 
     def set_swish(self, memory_efficient=True):
@@ -112,7 +113,7 @@ class Net(nn.Module):
             block.reset_running_stats()
 
 
-    def forward(self, inputs):
+    def forward(self, inputs, masks, counts):
         """
         Args:
             inputs (tensor): Input tensor.
@@ -127,8 +128,8 @@ class Net(nn.Module):
         seq = self._swish(self._input_expand(inputs))
 
         if self._base_transformer is not None:
-            seq = self._base_transformer(seq)
-        image = self._seq_to_image_start(seq)
+            seq = self._base_transformer(seq, masks, counts)
+        image = self._seq_to_image_start(seq, masks, counts)
 
         position_ch = get_position_ch(self._global_args.start_width,
                                       self._global_args.end_width,
@@ -151,14 +152,13 @@ class Net(nn.Module):
             if image_to_seq_b is not None:
                 seq = image_to_seq_b(seq, image)
             if seq_b is not None:
-                seq = seq_b(seq)
+                seq = seq_b(seq, masks, counts)
             if seq_to_image_b is not None:
-                image = seq_to_image_b(seq, image)
+                image = seq_to_image_b(seq, masks, counts, image)
 
         image = self.output_bn(image)
         image = self._swish(image)
         image = self.output_conv(image)
-        image = self._output_activation(
-            image)  # seems like a reasonable choice, but...
+        image = self._output_activation(image)
 
         return image

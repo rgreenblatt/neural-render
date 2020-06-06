@@ -296,24 +296,31 @@ def main():
         else:
             net.reset_running_stats()
 
-        for i, data in enumerate(train):
-            inp = data['inp'].to(device)
+        def evaluate_on_data(data):
             image = data['image'].to(device)
+            inp = data['inp'].to(device)
+            mask = data['mask'].to(device)
+            count = data['count'].to(device)
 
+            outputs = net(inp, mask, count)
+
+            loss = criterion(outputs, image)
+
+            return outputs, loss, image
+
+        for i, data in enumerate(train):
             # this wouldn't be strictly accurate if we had partial batches
             step += world_batch_size
             steps_since_display += world_batch_size
 
             optimizer.zero_grad()
 
-            outputs = net(inp)
+            outputs, loss, image = evaluate_on_data(data)
 
             # save at end of training
             if not disable_all_output and len(train) - i <= train_batches_save:
                 actual_images_train.update(image)
                 output_images_train.update(outputs)
-
-            loss = criterion(outputs, image)
 
             train_loss_tracker.update(loss)
 
@@ -341,16 +348,11 @@ def main():
 
         with torch.no_grad():
             for i, data in enumerate(test):
-                inp = data['inp'].to(device)
-                image = data['image'].to(device)
-
-                outputs = net(inp)
+                outputs, loss, image = evaluate_on_data(data)
 
                 if not disable_all_output and i < test_batches_save:
                     actual_images_test.update(image)
                     output_images_test.update(outputs)
-
-                loss = criterion(outputs, image)
 
                 test_loss_tracker.update(loss)
 

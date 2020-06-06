@@ -61,24 +61,11 @@ class RenderedDataset(torch.utils.data.Dataset):
 
         return sample
 
-    def groups(self, batch_size):
-        grouped = defaultdict(list)
-
+    def __len__(self):
         if self.fake_data:
-            grouped = {0: [], 1: [i for i in range(self.fake_data_size)]}
+            return 65536
         else:
-            for i, inp in enumerate(self.data):
-                grouped[inp.shape[0]].append(i)
-
-        out = []
-
-        for group in grouped.values():
-            out.extend(chunks_drop_last(group, batch_size))
-
-        return out
-
-
-
+            return len(self.data)
 
 class ToTensor(object):
     """Convert ndarrays in sample to Tensors."""
@@ -94,27 +81,67 @@ class ToTensor(object):
             'inp': torch.from_numpy(inp).float()
         }
 
+def mask_collate_fn(samples):
+    images = torch.stack([x['image'] for x in samples])
 
-class SubsetGroupedRandomDistributedSampler(torch.utils.data.sampler.Sampler):
+    max_seq_size = max((x['inp'].size(0) for x in samples))
+
+    assert len(samples) > 0
+
+    example_input_sample = samples[0]['inp']
+
+    batch_size = len(samples)
+    input_size = example_input_sample.size(1)
+    dtype = example_input_sample.dtype
+    device = example_input_sample.device
+
+    padded_inputs = torch.empty((batch_size, max_seq_size, input_size),
+                                dtype=dtype,
+                                device=device)
+    masks = torch.empty((batch_size, max_seq_size), dtype=dtype, device=device)
+    counts = torch.empty((batch_size, ), dtype=dtype, device=device)
+
+    for i in range(batch_size):
+        inp = samples[i]['inp']
+        this_seq_size = inp.size(0)
+        zero_pad = torch.zeros(
+            (max_seq_size - this_seq_size, input_size),
+            dtype=dtype,
+            device=device)
+        padded_inputs[i] = torch.cat((inp, zero_pad))
+
+        ones_mask = torch.ones((this_seq_size, ), dtype=dtype, device=device)
+        zeros_mask = torch.zeros((max_seq_size - this_seq_size, ),
+                                dtype=dtype,
+                                device=device)
+        masks[i] = torch.cat((ones_mask, zeros_mask))
+        counts[i] = this_seq_size
+
+    return {
+        'image': images,
+        'inp': padded_inputs,
+        'mask': masks,
+        'count': counts,
+    }
+
+
+
+class SubsetRandomDistributedSampler(torch.utils.data.sampler.Sampler):
     r"""Samples elements randomly from a given list of indices, without
     replacement ensuring groups remain together.
 
     Arguments:
-        indices (sequence): a sequence of indices
+        subset (sequence): a sequence of indices
         group_size (int): the size to keep together
         shuffle (bool): whether or not to random shuffle
         TODO
     """
     def __init__(self,
-                 indices,
-                 groups,
+                 subset,
                  num_replicas=1,
                  rank=0,
                  shuffle=True):
-        self.indices = indices
-        self.groups = groups
-        assert len(self.groups) != 0
-        self.group_size = len(self.groups[0])
+        self.subset = subset
         self.shuffle = shuffle
 
         self.epoch = 0
@@ -122,7 +149,7 @@ class SubsetGroupedRandomDistributedSampler(torch.utils.data.sampler.Sampler):
         self.num_replicas = num_replicas
         self.rank = rank
 
-        self.num_samples = math.ceil(len(self.indices) / self.num_replicas)
+        self.num_samples = math.ceil(len(self.subset) / self.num_replicas)
         self.total_size = self.num_samples * self.num_replicas
 
     def __iter__(self):
@@ -131,9 +158,9 @@ class SubsetGroupedRandomDistributedSampler(torch.utils.data.sampler.Sampler):
         g.manual_seed(self.epoch)
 
         if self.shuffle:
-            indices = torch.randperm(len(self.indices), generator=g).tolist()
+            indices = torch.randperm(len(self.subset), generator=g).tolist()
         else:
-            indices = list(range(len(self.indices)))
+            indices = list(range(len(self.subset)))
 
         # add extra samples to make it evenly divisible
         indices += indices[:(self.total_size - len(indices))]
@@ -143,14 +170,10 @@ class SubsetGroupedRandomDistributedSampler(torch.utils.data.sampler.Sampler):
         indices = indices[self.rank:self.total_size:self.num_replicas]
         assert len(indices) == self.num_samples
 
-        index_and_place_iter = itertools.product(indices,
-                                                 range(self.group_size))
-
-        return (self.groups[self.indices[i]][place]
-                for (i, place) in index_and_place_iter)
+        return (self.subset[i] for i in indices)
 
     def __len__(self):
-        return self.num_samples * self.group_size
+        return self.num_samples
 
     def set_epoch(self, epoch):
         self.epoch = epoch
@@ -179,29 +202,26 @@ def load_dataset(p_path,
                               start_range=start_range,
                               end_range=end_range)
 
-    groups = dataset.groups(batch_size)
-
     # we load in chunks to ensure each batch has consistant size
     # the dataset must have a consistant size per each group of batch_size
-    num_groups = len(groups)
+    num_samples = len(dataset)
 
     np.random.seed(seed)
 
-    indices = list(range(num_groups))
-    split = int(num_groups * validation_prop)
+    indices = list(range(num_samples))
+    split = int(num_samples * validation_prop)
 
     if shuffle_split:
         np.random.shuffle(indices)
-    train_indices, val_indices = indices[split:], indices[:split]
+    train_subset, val_subset = indices[split:], indices[:split]
 
-    train_sampler = SubsetGroupedRandomDistributedSampler(
-        train_indices, groups, num_replicas=num_replicas, rank=rank)
-    val_sampler = SubsetGroupedRandomDistributedSampler(
-        val_indices,
-        groups,
-        num_replicas=num_replicas,
-        rank=rank,
-        shuffle=False)
+    train_sampler = SubsetRandomDistributedSampler(train_subset,
+                                                   num_replicas=num_replicas,
+                                                   rank=rank)
+    val_sampler = SubsetRandomDistributedSampler(val_subset,
+                                                 num_replicas=num_replicas,
+                                                 rank=rank,
+                                                 shuffle=False)
 
     def make_loader(sampler):
         return torch.utils.data.DataLoader(
@@ -211,6 +231,7 @@ def load_dataset(p_path,
             sampler=sampler,
             pin_memory=True,
             drop_last=True,
+            collate_fn=mask_collate_fn,
         )
 
     train_loader = make_loader(train_sampler)

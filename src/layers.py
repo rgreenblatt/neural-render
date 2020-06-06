@@ -184,7 +184,11 @@ class MultiHeadedSelfAttention(nn.Module):
             nn.init.ones_(self._overall_gain)
             nn.init.constant_(self._overall_bias, self.mix_bias)
 
-    def forward(self, pre_value_key, pre_query):
+    def forward(self,
+                pre_value_key,
+                pre_query,
+                value_key_masks=None,
+                value_key_counts=None):
         """
         pre_value_key is used to compute value/key
         pre_query is used to compute query
@@ -221,17 +225,36 @@ class MultiHeadedSelfAttention(nn.Module):
         scores = (q @ k.transpose(-2, -1)) / np.sqrt(k.size(-1))
 
         if self.is_cross_attn:
+            if value_key_masks is not None:
+                scores_zeroed = scores * value_key_masks.view(
+                    value_key_masks.size(0), 1, 1, value_key_masks.size(1))
+
+                scores_divide_by_count = scores_zeroed / value_key_counts.view(
+                    value_key_counts.size(0), 1, 1, 1)
+            else:
+                scores_divide_by_count = scores / scores.size(-1)
+
             # (B, H, S_q, S_v) -mean-> (B, H, S_q, 1)
-            pooled_scores = scores.mean(-1, keepdim=True)
+            pooled_scores = scores_divide_by_count.sum(-1, keepdim=True)
 
             overall_weight = torch.sigmoid(pooled_scores * self._overall_gain +
                                            self._overall_bias)
 
+        if value_key_masks is not None:
+            add_mask = torch.where(
+                value_key_masks == 0,
+                torch.full_like(value_key_masks, float("-inf")),
+                torch.zeros_like(value_key_masks))
+            masked_scores = scores + add_mask.view(add_mask.size(0), 1, 1,
+                                                   add_mask.size(1))
+        else:
+            masked_scores = scores
+
         # (B, H, S_q, S_v) -softmax-> (B, H, S_q, S_v) (could have dropout)
-        scores = F.softmax(scores, dim=-1)
+        softmax_scores = F.softmax(masked_scores, dim=-1)
 
         # (B, H, S_q, S_v) @ (B, H, S_v, W_o) -> (B, H, S_q, W_o)
-        h = (scores @ v)
+        h = (softmax_scores @ v)
 
         if self.is_cross_attn:
             # (B, S_q, D_o) -split + trans-> (B, H, S_q, W_o)
@@ -315,11 +338,11 @@ class Transformer(nn.Module):
         self._pwff = PositionWiseFeedForward(cfg)
         self._norm2 = LayerNorm(cfg.size)
 
-    def forward(self, h):
+    def forward(self, h, masks, counts):
         # NOTE to self, masking may be useful...
         for _ in range(self.n_layers):
             prev_layer = h
-            h = self._attn(h, h)
+            h = self._attn(h, h, masks, counts)
             h = self._norm1(prev_layer + self._proj(h))
             h = self._norm2(h + self._pwff(h))
 
@@ -353,12 +376,14 @@ class SeqToImageStart(nn.Module):
         output_size = self.cfg.start_width**2 * self.cfg.start_ch
 
         # mean, sum, and count
-        feat_size = self.cfg.seq_size * 2 + 1
+        feat_size = self.cfg.seq_size * 2
 
         self._feat_to_query = nn.Linear(feat_size, output_size)
+        self._count_to_query = nn.Linear(1, output_size, bias=False)
 
         # I think attn doesn't have a bias, so we use it here
-        self._feat_to_output = nn.Linear(feat_size, output_size, bias=True)
+        self._feat_to_output = nn.Linear(feat_size, output_size)
+        self._count_to_output = nn.Linear(1, output_size, bias=False)
 
         self._attn = MultiHeadedSelfAttention(self.cfg.seq_size,
                                               self.cfg.start_ch,
@@ -368,25 +393,26 @@ class SeqToImageStart(nn.Module):
                                               input_is_query=True,
                                               use_proj_c=False)
 
-    def forward(self, x, y=None):
+    def forward(self, x, masks, counts):
         # Uses average and count to produce query
-        avgs = x.mean(1, keepdim=True)
-        count = x.size(1)
-        total = avgs * count
-        feat = torch.cat(
-            (avgs, total,
-             torch.full(
-                 (x.size(0), 1, 1), count, device=x.device, dtype=x.dtype)),
-            dim=2)
+        x_masked = x * masks[:, :, None]
+
+        expanded_counts = counts[:, None]
+
+        totals = x_masked.sum(1)
+        avgs = totals / expanded_counts
+        feat = torch.cat((avgs, totals), dim=1)
 
         output_shape = (feat.size(0), self.cfg.start_width**2,
                         self.cfg.start_ch)
 
-        query = self._feat_to_query(feat).view(*output_shape)
-        attention_output = self._attn(x, query)
+        query = (self._feat_to_query(feat) +
+                 self._count_to_query(expanded_counts)).view(*output_shape)
+        attention_output = self._attn(x, query, masks, counts)
 
-        output = attention_output + self._feat_to_output(feat).view(
-            *output_shape)
+        output = attention_output + (
+            self._feat_to_output(feat) +
+            self._count_to_output(expanded_counts)).view(*output_shape)
 
         # return as NxCxHxW
         return seq_to_width(output, self.cfg.start_width)
@@ -558,6 +584,8 @@ class ImageToSeq(nn.Module):
 
     # x is seq (BS x D), y is image type data (B x C x H x W)
     def forward(self, x, y):
+        # no need to account for mask here, values will be added that aren't
+        # used.
         return self._attn(width_to_seq(y), x)
 
 
@@ -585,7 +613,7 @@ class SeqToImage(nn.Module):
                                               mix_bias=self.cfg.mix_bias)
 
     # x is seq (B x S x D), y is image type data (B x C x H x W)
-    def forward(self, x, y):
+    def forward(self, x, masks, counts, y):
         batch_size = y.size(0)
         height = y.size(2)
         width = y.size(3)
@@ -595,7 +623,7 @@ class SeqToImage(nn.Module):
 
         # attention is applied elementwise to "pixels" (similar to global
         # attention from AttnNet - just implementation differences)
-        added_values = seq_to_width(self._attn(x, y_seq), width)
+        added_values = seq_to_width(self._attn(x, y_seq, masks, counts), width)
 
         if self.cfg.add_all_ch:
             return added_values
