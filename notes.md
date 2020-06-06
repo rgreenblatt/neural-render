@@ -282,6 +282,8 @@ things keep converging). Direct next steps:
  - retest remove base transformer
  - save all run settings in tensorboard (all args + commit hash)
 
+2020-06-05:
+
 Interesting finding: multi gpu training is important. This is likely due
 to sequence length issues. Training with 4 gpus makes things much more stable.
 O1 doesn't appear to make things much faster (maybe slightly). I will do some
@@ -291,6 +293,13 @@ This should inform correct opt level.
 Larger seq size didn't seem to improve anything, but I might rerun with new
 settings. I am currently running smaller seq size.
 
-O0 is just as fast as O1 (smaller batch size outweigh
+O0 is just as fast as O1 (smaller batch size outweighed by no need for
+conversions I assume).
+
+Interestingly, O0 and O2 both perform about the same and perform worse than
+O1. Perhaps O2 is too much loss of accuracy and O1 also has a regularization
+effect?
+
+To fix sequence length bn issues, masking should work.
 
 

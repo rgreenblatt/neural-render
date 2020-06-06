@@ -77,7 +77,7 @@ def main():
         torch.cuda.set_device(which_gpu)
         torch.distributed.init_process_group(backend='nccl',
                                              init_method='env://')
-        args.world_size = torch.distributed.get_world_size()
+        world_size = torch.distributed.get_world_size()
 
     def reduce_tensor(tensor):
         if not use_distributed:
