@@ -168,7 +168,10 @@ def main():
         add_image_to_seq_mix_bias=cfg.add_image_to_seq_mix_bias,
         base_transformer_n_layers=cfg.base_transformer_n_layers,
         seq_transformer_n_layers=cfg.seq_transformer_n_layers,
-        full_attn_ch=cfg.full_attn_ch)
+        full_attn_ch=cfg.full_attn_ch,
+        seq_to_image_start_use_feat_to_output=not cfg.
+        no_seq_to_image_start_use_feat_to_output,
+    )
 
     net = Net(blocks_args, global_args)
 

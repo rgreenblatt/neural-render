@@ -360,9 +360,9 @@ class Transformer(nn.Module):
         self._pwff.set_swish(memory_efficient)
 
 
-SeqToImageStartCfg = collections.namedtuple(
-    'SeqToImageStartCfg',
-    ['start_ch', 'ch_per_head', 'start_width', 'seq_size'])
+SeqToImageStartCfg = collections.namedtuple('SeqToImageStartCfg', [
+    'start_ch', 'ch_per_head', 'start_width', 'seq_size', 'use_feat_to_output'
+])
 
 
 class SeqToImageStart(nn.Module):
@@ -381,9 +381,10 @@ class SeqToImageStart(nn.Module):
         self._feat_to_query = nn.Linear(feat_size, output_size)
         self._count_to_query = nn.Linear(1, output_size, bias=False)
 
-        # I think attn doesn't have a bias, so we use it here
-        self._feat_to_output = nn.Linear(feat_size, output_size)
-        self._count_to_output = nn.Linear(1, output_size, bias=False)
+        if self.cfg.use_feat_to_output:
+            # I think attn doesn't have a bias, so we use it here
+            self._feat_to_output = nn.Linear(feat_size, output_size)
+            self._count_to_output = nn.Linear(1, output_size, bias=False)
 
         self._attn = MultiHeadedSelfAttention(self.cfg.seq_size,
                                               self.cfg.start_ch,
@@ -408,11 +409,12 @@ class SeqToImageStart(nn.Module):
 
         query = (self._feat_to_query(feat) +
                  self._count_to_query(expanded_counts)).view(*output_shape)
-        attention_output = self._attn(x, query, masks, counts)
+        output = self._attn(x, query, masks, counts)
 
-        output = attention_output + (
-            self._feat_to_output(feat) +
-            self._count_to_output(expanded_counts)).view(*output_shape)
+        if self.cfg.use_feat_to_output:
+            output = output + (self._feat_to_output(feat) +
+                               self._count_to_output(expanded_counts)).view(
+                                   *output_shape)
 
         # return as NxCxHxW
         return seq_to_width(output, self.cfg.start_width)

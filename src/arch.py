@@ -24,10 +24,19 @@ def subset_named_tuple(to_tup, from_tup, **kwargs):
 
 # Parameters for the entire model
 _GlobalArgParams = collections.namedtuple('GlobalArgsParams', [
-    'start_width', 'end_width', 'input_size', 'seq_size',
-    'base_transformer_n_heads', 'base_transformer_n_layers', 'nonlocal_index',
-    'start_ch', 'ch_per_head', 'norm_style', 'checkpoint_conv',
-    'use_base_transformer'
+    'start_width',
+    'end_width',
+    'input_size',
+    'seq_size',
+    'base_transformer_n_heads',
+    'base_transformer_n_layers',
+    'nonlocal_index',
+    'start_ch',
+    'ch_per_head',
+    'norm_style',
+    'checkpoint_conv',
+    'use_base_transformer',
+    'seq_to_image_start_use_feat_to_output',
 ])
 
 
@@ -39,7 +48,10 @@ class GlobalArgs(_GlobalArgParams):
                               hidden_ff_size=self.seq_size * 4)
 
     def seq_to_image_start_args(self):
-        return subset_named_tuple(SeqToImageStartCfg, self)
+        return subset_named_tuple(
+            SeqToImageStartCfg,
+            self,
+            use_feat_to_output=self.seq_to_image_start_use_feat_to_output)
 
 
 # Parameters for each model block
@@ -171,6 +183,7 @@ def net_params(
     base_transformer_n_layers=4,
     seq_transformer_n_layers=4,
     full_attn_ch=False,
+    seq_to_image_start_use_feat_to_output=True,
 ):
     """Create BlockArgs and GlobalParams
 
@@ -267,6 +280,8 @@ def net_params(
         norm_style=norm_style,
         checkpoint_conv=checkpoint_conv,
         use_base_transformer=use_base_transformer,
+        seq_to_image_start_use_feat_to_output=
+        seq_to_image_start_use_feat_to_output,
     )
 
     return blocks_args, global_args

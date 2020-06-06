@@ -300,6 +300,19 @@ Interestingly, O0 and O2 both perform about the same and perform worse than
 O1. Perhaps O2 is too much loss of accuracy and O1 also has a regularization
 effect?
 
-To fix sequence length bn issues, masking should work.
+2020-06-06 13:46
+
+To fix sequence length bn issues, masking should work. This has now been
+implemented.
+
+I ran a test reintroducing seq blocks. seq blocks had a moderate negative
+effect. This may be related to overfitting. Mitigation via regularization
+or sharing parameters may be effective. These effects might change with
+the introduction of masking.
+
+I have some ideas to alter the input block - will test.
+
+Large seq size performs poorly (test divergence). No input transformer also
+performs poorly (general overfitting).
 
 
