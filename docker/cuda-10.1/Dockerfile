@@ -60,4 +60,4 @@ RUN apt-get update && apt-get install -y \
         git
 
 RUN conda install numpy tensorboard pip scipy
-RUN pip install imageio && imageio_download_bin freeimage
+RUN pip install imageio gitpython && imageio_download_bin freeimage
