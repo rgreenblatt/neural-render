@@ -8,6 +8,7 @@
 
 from pathlib import Path
 import math
+import sys
 from functools import partial
 from collections import namedtuple
 
@@ -105,6 +106,7 @@ def resize(img, output_size):
     return img.reshape(
         (output_size, bin_size, output_size, bin_size, 3)).mean(3).mean(1)
 
+
 class LossTracker():
     def __init__(self, reduce_tensor):
         super().__init__()
@@ -196,6 +198,27 @@ class LRSched():
             return self.linear_part(epoch)
         else:
             return self.cos_part(epoch)
+
+
+class PrintAndLog():
+    def __init__(self, file_name):
+        super().__init__()
+
+        self.file = open(file_name, 'w')
+        self.stdout = sys.stdout
+        sys.stdout = self
+
+    def __del__(self):
+        sys.stdout = self.stdout
+        self.file.close()
+
+    def write(self, data):
+        self.file.write(data)
+        self.stdout.write(data)
+
+    def flush(self):
+        self.file.flush()
+
 
 if __name__ == "__main__":
     epochs = 100
