@@ -171,6 +171,7 @@ def main():
         full_attn_ch=cfg.full_attn_ch,
         seq_to_image_start_use_feat_to_output=not cfg.
         no_seq_to_image_start_use_feat_to_output,
+        full_seq_frequency=cfg.full_seq_frequency,
     )
 
     net = Net(blocks_args, global_args)

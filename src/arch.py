@@ -78,6 +78,7 @@ _BlockArgsParams = collections.namedtuple('BlockArgsParams', [
     'add_seq_to_image',
     'add_seq_to_image_mix_bias',
     'add_image_to_seq_mix_bias',
+    'full_seq_frequency',
 ])
 
 
@@ -101,12 +102,15 @@ class BlockArgs(_BlockArgsParams):
         # this could change...
         # we use sequence blocks on the first block
         self.use_image_to_seq_this_block = (self.use_seq_to_image
-                                            and is_first_block)
-        self.use_seq_this_block = (self.use_seq_block and is_first_block)
+                                            and (is_first_block
+                                                 or self.full_seq_frequency))
+        self.use_seq_this_block = (self.use_seq_block and
+                                   (is_first_block or self.full_seq_frequency))
 
         # and reincorporate sequence on the last block
         self.use_seq_to_image_this_block = (self.use_image_to_seq
-                                            and is_last_block)
+                                            and (is_last_block
+                                                 or self.full_seq_frequency))
 
         def round_valid(value):
             return math.ceil(round(value) / self.round_by) * self.round_by
@@ -184,6 +188,7 @@ def net_params(
     seq_transformer_n_layers=4,
     full_attn_ch=False,
     seq_to_image_start_use_feat_to_output=True,
+    full_seq_frequency=False,
 ):
     """Create BlockArgs and GlobalParams
 
@@ -263,6 +268,7 @@ def net_params(
                 add_seq_to_image=add_seq_to_image,
                 add_seq_to_image_mix_bias=add_seq_to_image_mix_bias,
                 add_image_to_seq_mix_bias=add_image_to_seq_mix_bias,
+                full_seq_frequency=full_seq_frequency,
             ))
 
         ch_before = ch_after

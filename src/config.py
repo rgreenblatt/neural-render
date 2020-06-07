@@ -117,6 +117,8 @@ class Config(argparse.Namespace):
         self.parser.add_argument('--amp-verbosity', type=int, default=0)
         self.parser.add_argument('--no-seq-to-image-start-use-feat-to-output',
                                  action='store_true')
+        self.parser.add_argument('--full-seq-frequency',
+                                 action='store_true')
 
         return self.parser
 
