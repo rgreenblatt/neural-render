@@ -172,6 +172,7 @@ def main():
         seq_to_image_start_use_feat_to_output=not cfg.
         no_seq_to_image_start_use_feat_to_output,
         full_seq_frequency=cfg.full_seq_frequency,
+        use_nonlocal=cfg.use_nonlocal,
     )
 
     net = Net(blocks_args, global_args)

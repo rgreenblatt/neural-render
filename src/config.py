@@ -73,6 +73,7 @@ class Config(argparse.Namespace):
         self.parser.add_argument('--norm-style', default='bn')
         self.parser.add_argument('--max-ch', type=int, default=256)
         self.parser.add_argument('--initial-attn-ch', type=int, default=128)
+        self.parser.add_argument('--use-nonlocal', action='store_true')
         self.parser.add_argument('--seq-size', type=int, default=512)
         self.parser.add_argument('--no-cudnn-benchmark', action='store_true')
         self.parser.add_argument('--local_rank', type=int, default=0)

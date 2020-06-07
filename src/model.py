@@ -65,7 +65,8 @@ class Net(nn.Module):
                     get_block(SeqToImage, block_args.use_seq_to_image_this_block,
                               block_args.seq_to_image_args()))
 
-            if i == self._global_args.nonlocal_index - 1:
+            if (self._global_args.use_nonlocal
+                    and i == self._global_args.nonlocal_index - 1):
                 self._attention_index = len(self._image_blocks) - 1
                 self._attention = Attention(block_args.output_ch)
 
@@ -155,6 +156,9 @@ class Net(nn.Module):
                 seq = seq_b(seq, masks, counts)
             if seq_to_image_b is not None:
                 image = seq_to_image_b(seq, masks, counts, image)
+
+            if self._global_args.use_nonlocal and i == self._attention_index:
+                image = self._attention(image)
 
         image = self.output_bn(image)
         image = self._swish(image)

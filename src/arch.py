@@ -31,6 +31,7 @@ _GlobalArgParams = collections.namedtuple('GlobalArgsParams', [
     'base_transformer_n_heads',
     'base_transformer_n_layers',
     'nonlocal_index',
+    'use_nonlocal',
     'start_ch',
     'ch_per_head',
     'norm_style',
@@ -189,6 +190,7 @@ def net_params(
     full_attn_ch=False,
     seq_to_image_start_use_feat_to_output=True,
     full_seq_frequency=False,
+    use_nonlocal=False,
 ):
     """Create BlockArgs and GlobalParams
 
@@ -281,6 +283,7 @@ def net_params(
         base_transformer_n_heads=8,
         base_transformer_n_layers=base_transformer_n_layers,
         nonlocal_index=nonlocal_index,
+        use_nonlocal=use_nonlocal,
         start_ch=round(start_ch),
         ch_per_head=start_ch_per_head,
         norm_style=norm_style,

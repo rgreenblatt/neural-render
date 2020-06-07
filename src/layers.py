@@ -665,7 +665,7 @@ class Attention(nn.Module):
         # Learnable gain parameter
         self.gamma = P(torch.tensor(0.), requires_grad=True)
 
-    def forward(self, x, y=None, position_ch=None):
+    def forward(self, x):
         # Apply convs
         theta = self.theta(x)
         phi = F.max_pool2d(self.phi(x), [2, 2])
