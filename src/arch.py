@@ -191,6 +191,7 @@ def net_params(
     seq_to_image_start_use_feat_to_output=True,
     full_seq_frequency=False,
     use_nonlocal=False,
+    use_se=True,
 ):
     """Create BlockArgs and GlobalParams
 
@@ -253,7 +254,7 @@ def net_params(
                 expand_ratio=expand_ratio,
                 input_ch=input_ch,
                 output_ch=output_ch,
-                se_ratio=0.25,
+                se_ratio=0.25 if use_se else None,
                 show_position=True,
                 seq_size=seq_size,
                 attn_output_ch=round(attn_ch),

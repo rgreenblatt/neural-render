@@ -315,4 +315,6 @@ I have some ideas to alter the input block - will test.
 Large seq size performs poorly (test divergence). No input transformer also
 performs poorly (general overfitting).
 
+2020-06-07 16:36
 
+Nonlocal block performs poorly. Increasing seq frequency performs poorly.

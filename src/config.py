@@ -120,6 +120,8 @@ class Config(argparse.Namespace):
                                  action='store_true')
         self.parser.add_argument('--full-seq-frequency',
                                  action='store_true')
+        self.parser.add_argument('--no-se',
+                                 action='store_true')
 
         return self.parser
 
