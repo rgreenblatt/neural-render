@@ -174,6 +174,7 @@ def main():
         full_seq_frequency=cfg.full_seq_frequency,
         use_nonlocal=cfg.use_nonlocal,
         use_se=cfg.use_se,
+        start_ch=cfg.start_ch,
     )
 
     net = Net(blocks_args, global_args)
