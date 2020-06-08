@@ -317,11 +317,25 @@ performs poorly (general overfitting).
 
 2020-06-07 16:36
 
-Nonlocal block performs poorly. Increasing seq frequency performs poorly.
+Nonlocal block performs poorly. Increasing seq frequency doesn't change
+performance much (test perf similar, train slightly worse - less overfit but
+very small difference).
 
 2020-06-07 22:23
 
-squeeze excitation lowers performance. Position channels lower performance
-(this is interesting, I would expect the effect to be smaller than it is
-and to be either helpful or no effect - probably related to overfitting
-on specific locations).
+squeeze excitation lowers performance by a lot. Position channels lowers
+performance substantially (this is interesting, I would expect the effect to be
+smaller than it is and to be either helpful or no effect - probably related to
+overfitting).
+
+I have some ideas for a squeeze excitation like block using attention which
+may work better. Basically, compute channel wise multipliers per sequence
+element (also using GAP values perhaps) and then weight multipliers using
+attention per pixel.
+
+I have some ides for better seq blocks. Let input be x.
+y = swish(contract_linear(swish(expand_linear(x))))
+x = cross_attn(y, x)
+
+This is pretty similar to transformer blocks but with a few important tweaks.
+I think this will work better.
