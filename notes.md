@@ -318,3 +318,10 @@ performs poorly (general overfitting).
 2020-06-07 16:36
 
 Nonlocal block performs poorly. Increasing seq frequency performs poorly.
+
+2020-06-07 22:23
+
+squeeze excitation lowers performance. Position channels lower performance
+(this is interesting, I would expect the effect to be smaller than it is
+and to be either helpful or no effect - probably related to overfitting
+on specific locations).

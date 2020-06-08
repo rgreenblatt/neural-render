@@ -422,7 +422,7 @@ class SeqToImageStart(nn.Module):
 
 MBConvCfg = collections.namedtuple('MBConvCfg', [
     'input_ch', 'output_ch', 'upsample', 'expand_ratio', 'kernel_size',
-    'norm_style', 'se_ratio', 'show_position'
+    'norm_style', 'se_ratio'
 ])
 
 
@@ -517,11 +517,6 @@ class MBConvGBlock(nn.Module):
 
         x = self._bn0(x)
         x = self._swish(x)
-
-        if self.cfg.show_position:
-            expanded_pos = position_ch.expand(x.size(0), -1, -1, -1)
-
-            x = torch.cat((x, expanded_pos), dim=1)
 
         x = self._expand_conv(x)
         x = self._bn1(x)

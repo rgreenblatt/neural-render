@@ -64,7 +64,6 @@ _BlockArgsParams = collections.namedtuple('BlockArgsParams', [
     'input_ch',
     'output_ch',
     'se_ratio',
-    'show_position',
     'seq_size',
     'attn_output_ch',
     'seq_n_heads',
@@ -192,7 +191,6 @@ def net_params(
     full_seq_frequency=False,
     use_nonlocal=False,
     use_se=True,
-    use_position_ch=True,
 ):
     """Create BlockArgs and GlobalParams
 
@@ -256,7 +254,6 @@ def net_params(
                 input_ch=input_ch,
                 output_ch=output_ch,
                 se_ratio=0.25 if use_se else None,
-                show_position=use_position_ch,
                 seq_size=seq_size,
                 attn_output_ch=round(attn_ch),
                 seq_n_heads=8,
