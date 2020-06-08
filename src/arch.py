@@ -176,6 +176,8 @@ def net_params(input_size, output_width, cfg):
 
     assert not cfg.norm_style.startswith('gn'), "group norm not supported"
 
+    width = cfg.start_width
+
     # TODO: tuning
     for i in range(num_upsamples):
         if i < cfg.constant_ch_blocks:
@@ -183,11 +185,14 @@ def net_params(input_size, output_width, cfg):
         else:
             output_ch = input_ch / 2
 
+        width *= 2
+
         attn_ch = output_ch * cfg.attn_ch_frac
 
         if cfg.show_model_info:
-            print("Layer {} input ch: {}, output ch: {}, attn ch: {}".format(
-                i, input_ch, output_ch, attn_ch))
+            print(
+                "Layer {} input ch: {}, output ch: {}, attn ch: {}, width: {}".
+                format(i, input_ch, output_ch, attn_ch, width))
 
         expand_ratio = 6
 
