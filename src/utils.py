@@ -71,22 +71,6 @@ class MemoryEfficientSwish(nn.Module):
         return SwishImplementation.apply(x)
 
 
-def get_position_ch(min_width, max_width, dtype, device):
-    out = {}
-    for i in range(int(math.log2(min_width)), int(math.log2(max_width)) + 1):
-        width = 2**i
-        linear = torch.linspace(0.0, 1.0,
-                                steps=width).type(dtype).to(device).view(
-                                    width, 1)
-        x_ch = linear.expand(width, width)
-        y_ch = linear.view(1, width).expand(width, width)
-        out[width] = torch.cat(
-            (x_ch.view(1, width, width), y_ch.view(1, width, width)),
-            dim=0).view(1, 2, width, width)
-
-    return out
-
-
 # Note: expects tensor type in standard format (N x C x H x W)
 def linear_to_srgb(img):
     return torch.clamp(torch.where(img <= 0.0031308, 12.92 * img,

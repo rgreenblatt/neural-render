@@ -458,9 +458,6 @@ class MBConvGBlock(nn.Module):
 
         self._bn0 = self.which_norm(inp)
 
-        if self.cfg.show_position:
-            inp += 2
-
         # if expand ratio == 1 this probably isn't needed...
         self._expand_conv = nn.Conv2d(in_channels=inp,
                                       out_channels=oup,
@@ -502,7 +499,7 @@ class MBConvGBlock(nn.Module):
 
         self._upsample = functools.partial(F.interpolate, scale_factor=2)
 
-    def forward(self, inputs, position_ch):
+    def forward(self, inputs):
         """MBConvBlock's forward function.
 
         Args:
