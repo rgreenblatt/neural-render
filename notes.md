@@ -339,3 +339,15 @@ x = cross_attn(y, x)
 
 This is pretty similar to transformer blocks but with a few important tweaks.
 I think this will work better.
+
+2020-06-08 09:50
+
+Bizarrely, combining no_se and no_position_ch leads to poor performance.  I
+think this may be related to the fact that I ran the combined run with 2 gpus
+and the individual runs with 4 gpus. This isn't the case. Runs with 2 gpus
+perform similarly to runs with 4 gpus (except for the lr schedule which varies
+somewhat). There was divergence with 4 gpus, but after reducing learning rates,
+the results with 4 and 2 gpus were similar. It looks like the learning rate
+is right on the edge of too high.
+
+For now, I will keep position_ch.

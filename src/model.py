@@ -3,7 +3,7 @@ from torch import nn
 
 from layers import (MBConvGBlock, Attention, Transformer, SeqToImageStart,
                     SeqToImage, ImageToSeq, ConfigurableNorm)
-from utils import Swish, MemoryEfficientSwish
+from utils import Swish, MemoryEfficientSwish, get_position_ch
 
 
 class Net(nn.Module):
@@ -132,16 +132,23 @@ class Net(nn.Module):
             seq = self._base_transformer(seq, masks, counts)
         image = self._seq_to_image_start(seq, masks, counts)
 
+        position_ch = get_position_ch(self._global_args.start_width,
+                                      self._global_args.end_width,
+                                      inputs.dtype, inputs.device)
+
         all_blocks = (self._image_blocks, self._image_to_seq_blocks,
                       self._seq_blocks, self._seq_to_image_blocks)
 
         for i, blocks in enumerate(zip(*all_blocks)):
             (image_b, image_to_seq_b, seq_b, seq_to_image_b) = blocks
 
+            this_position_ch = position_ch[image.size(2)]
+
             if self._global_args.checkpoint_conv:
-                image = torch.utils.checkpoint.checkpoint(image_b, image)
+                image = torch.utils.checkpoint.checkpoint(
+                    image_b, image, this_position_ch)
             else:
-                image = image_b(image)
+                image = image_b(image, this_position_ch)
 
             if image_to_seq_b is not None:
                 seq = image_to_seq_b(seq, image)

@@ -422,7 +422,7 @@ class SeqToImageStart(nn.Module):
 
 MBConvCfg = collections.namedtuple('MBConvCfg', [
     'input_ch', 'output_ch', 'upsample', 'expand_ratio', 'kernel_size',
-    'norm_style', 'se_ratio'
+    'norm_style', 'se_ratio', 'use_position_ch'
 ])
 
 
@@ -457,6 +457,9 @@ class MBConvGBlock(nn.Module):
                                             norm_style=cfg.norm_style)
 
         self._bn0 = self.which_norm(inp)
+
+        if self.cfg.use_position_ch:
+            inp += 2
 
         # if expand ratio == 1 this probably isn't needed...
         self._expand_conv = nn.Conv2d(in_channels=inp,
@@ -499,7 +502,7 @@ class MBConvGBlock(nn.Module):
 
         self._upsample = functools.partial(F.interpolate, scale_factor=2)
 
-    def forward(self, inputs):
+    def forward(self, inputs, position_ch):
         """MBConvBlock's forward function.
 
         Args:
@@ -514,6 +517,11 @@ class MBConvGBlock(nn.Module):
 
         x = self._bn0(x)
         x = self._swish(x)
+
+        if self.cfg.use_position_ch:
+            expanded_pos = position_ch.expand(x.size(0), -1, -1, -1)
+
+            x = torch.cat((x, expanded_pos), dim=1)
 
         x = self._expand_conv(x)
         x = self._bn1(x)

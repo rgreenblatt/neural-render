@@ -149,33 +149,7 @@ def main():
 
     input_size = 56  # 20, then 56 after process_input
 
-    blocks_args, global_args = net_params(
-        input_size=input_size,
-        seq_size=cfg.seq_size,
-        initial_attn_ch=cfg.initial_attn_ch,
-        output_width=img_width,
-        max_ch=cfg.max_ch,
-        norm_style=cfg.norm_style,
-        show_info=show_model_info,
-        use_seq_to_image=not cfg.no_seq_to_image,
-        use_image_to_seq=not cfg.no_image_to_seq,
-        use_seq_block=cfg.use_seq_blocks,
-        checkpoint_conv=cfg.checkpoint_conv,
-        use_base_transformer=not cfg.no_base_transformer,
-        only_descending_ch=cfg.only_descending_ch,
-        add_seq_to_image=not cfg.no_add_seq_to_image,
-        add_seq_to_image_mix_bias=cfg.add_seq_to_image_mix_bias,
-        add_image_to_seq_mix_bias=cfg.add_image_to_seq_mix_bias,
-        base_transformer_n_layers=cfg.base_transformer_n_layers,
-        seq_transformer_n_layers=cfg.seq_transformer_n_layers,
-        full_attn_ch=cfg.full_attn_ch,
-        seq_to_image_start_use_feat_to_output=not cfg.
-        no_seq_to_image_start_use_feat_to_output,
-        full_seq_frequency=cfg.full_seq_frequency,
-        use_nonlocal=cfg.use_nonlocal,
-        use_se=cfg.use_se,
-        start_ch=cfg.start_ch,
-    )
+    blocks_args, global_args = net_params(input_size, img_width, cfg)
 
     net = Net(blocks_args, global_args)
 

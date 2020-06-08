@@ -51,11 +51,18 @@ class Config(argparse.Namespace):
 
     def build_parser(self):
         self.parser = argparse.ArgumentParser()
+        self.parser.add_argument('--local_rank', type=int, default=0)
+
         self.parser.add_argument('--lr-multiplier', type=float, default=1.0)
+        self.parser.add_argument('--no-perceptual-loss', action='store_true')
         self.parser.add_argument('--batch-size', type=int, default=16)
+        self.parser.add_argument('--no-cudnn-benchmark', action='store_true')
+        self.parser.add_argument('--no-fused-adam', action='store_true')
+        self.parser.add_argument('--opt-level', default='O1')
         self.parser.add_argument('--epochs', type=int, default=200)
         self.parser.add_argument('--resolution', type=int, default=128)
         self.parser.add_argument('--valid-split-seed', type=int, default=0)
+        self.parser.add_argument('--amp-verbosity', type=int, default=0)
         self.parser.add_argument('--train-images-to-save',
                                  type=int,
                                  default=64)
@@ -69,36 +76,33 @@ class Config(argparse.Namespace):
             default=5000,
             help='number of samples per display print out and tensorboard save'
         )
+        self.parser.add_argument('--show-model-info', action='store_true')
         self.parser.add_argument('--name', required=True)
-        self.parser.add_argument('--norm-style', default='bn')
-        self.parser.add_argument('--max-ch', type=int, default=256)
-        self.parser.add_argument('--initial-attn-ch', type=int, default=128)
-        self.parser.add_argument('--use-nonlocal', action='store_true')
-        self.parser.add_argument('--seq-size', type=int, default=512)
-        self.parser.add_argument('--no-cudnn-benchmark', action='store_true')
-        self.parser.add_argument('--local_rank', type=int, default=0)
-        self.parser.add_argument('--opt-level', default='O1')
-        self.parser.add_argument(
-            '--no-sync-bn',
-            action='store_true',
-            help='do not use sync bn when running in parallel')
+
         self.parser.add_argument('--profile', action='store_true')
         self.parser.add_argument('--profile-len',
                                  type=int,
                                  default=5000,
                                  help='number of samples to run for profiling')
-        self.parser.add_argument('--show-model-info', action='store_true')
         self.parser.add_argument('--fake-data',
                                  action='store_true',
                                  help='disable loading data for profiling')
 
+        self.parser.add_argument('--norm-style', default='bn')
+        self.parser.add_argument('--start-ch', type=int, default=256)
+        self.parser.add_argument('--start-width', type=int, default=4)
+        self.parser.add_argument('--seq-size', type=int, default=512)
+        self.parser.add_argument(
+            '--no-sync-bn',
+            action='store_true',
+            help='do not use sync bn when running in parallel')
+        self.parser.add_argument('--use-nonlocal', action='store_true')
+        self.parser.add_argument('--nonlocal-width', type=int, default=64)
         self.parser.add_argument('--no-seq-to-image', action='store_true')
-        self.parser.add_argument('--no-perceptual-loss', action='store_true')
-        self.parser.add_argument('--use-seq-blocks', action='store_true')
         self.parser.add_argument('--no-image-to-seq', action='store_true')
+        self.parser.add_argument('--use-seq-blocks', action='store_true')
         self.parser.add_argument('--checkpoint-conv', action='store_true')
         self.parser.add_argument('--no-base-transformer', action='store_true')
-        self.parser.add_argument('--only-descending-ch', action='store_true')
         self.parser.add_argument('--no-add-seq-to-image', action='store_true')
         self.parser.add_argument('--add-seq-to-image-mix-bias',
                                  type=float,
@@ -113,14 +117,18 @@ class Config(argparse.Namespace):
         self.parser.add_argument('--seq-transformer-n-layers',
                                  type=int,
                                  default=1)
-        self.parser.add_argument('--full-attn-ch', action='store_true')
-        self.parser.add_argument('--no-fused-adam', action='store_true')
-        self.parser.add_argument('--amp-verbosity', type=int, default=0)
+        self.parser.add_argument('--attn-ch-frac', type=float, default=0.5)
         self.parser.add_argument('--no-seq-to-image-start-use-feat-to-output',
                                  action='store_true')
         self.parser.add_argument('--full-seq-frequency', action='store_true')
+        self.parser.add_argument('--no-position-ch', action='store_true')
         self.parser.add_argument('--use-se', action='store_true')
-        self.parser.add_argument('--start-ch', type=int, default=128)
+        self.parser.add_argument('--constant-ch-blocks', type=int, default=2)
+
+        self.parser.add_argument('--ch-coefficient', type=float, default=1.0)
+        self.parser.add_argument('--depth-coefficient',
+                                 type=float,
+                                 default=1.0)
 
         return self.parser
 

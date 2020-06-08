@@ -64,14 +64,13 @@ _BlockArgsParams = collections.namedtuple('BlockArgsParams', [
     'input_ch',
     'output_ch',
     'se_ratio',
+    'use_position_ch',
     'seq_size',
-    'attn_output_ch',
+    'attn_ch',
     'seq_n_heads',
     'transformer_n_layers',
     'image_n_heads',
     'norm_style',
-    'round_by',
-    'show_info',
     'use_seq_to_image',
     'use_image_to_seq',
     'use_seq_block',
@@ -88,16 +87,14 @@ class BlockArgs(_BlockArgsParams):
         if not hasattr(self, 'block_num'):
             self.block_num = 0
             self.output_ch_this_block = self.input_ch
-            self.ch_per_block = (self.output_ch -
-                                 self.input_ch) / self.num_repeat
 
         is_first_block = self.block_num == 0
         is_last_block = self.block_num == self.num_repeat - 1
 
         self.upsample_this_block = is_last_block
         self.input_ch_this_block = self.output_ch_this_block
-        self.output_ch_this_block = (self.input_ch_this_block +
-                                     self.ch_per_block)
+        if is_last_block:
+            self.output_ch_this_block = self.output_ch
 
         # this could change...
         # we use sequence blocks on the first block
@@ -112,21 +109,14 @@ class BlockArgs(_BlockArgsParams):
                                             and (is_last_block
                                                  or self.full_seq_frequency))
 
-        def round_valid(value):
-            return math.ceil(round(value) / self.round_by) * self.round_by
+        # def round_valid(value):
+        #     return math.ceil(round(value) / self.round_by) * self.round_by
 
-        self.input_ch_conv = round_valid(self.input_ch_this_block)
-        self.output_ch_conv = round_valid(self.output_ch_this_block)
+        self.input_ch_conv = self.input_ch_this_block
+        self.output_ch_conv = self.output_ch_this_block
 
         if self.use_seq_to_image_this_block and not self.add_seq_to_image:
-            self.output_ch_conv -= round(self.attn_output_ch)
-
-        if self.show_info:
-            print("block num:", self.block_num)
-            print("input conv at n:", self.input_ch_conv)
-            print("output conv at n:", self.output_ch_conv)
-            print("output overall at n:", self.output_ch_this_block)
-            print("output at end of blocks:", self.output_ch)
+            self.output_ch_conv -= round(self.attn_ch)
 
         self.block_num += 1
 
@@ -154,44 +144,13 @@ class BlockArgs(_BlockArgsParams):
     def seq_to_image_args(self):
         return SeqToImageCfg(image_ch=self.output_ch_conv,
                              seq_size=self.seq_size,
-                             output_ch=self.attn_output_ch,
+                             output_ch=self.attn_ch,
                              n_heads=self.image_n_heads,
                              add_all_ch=self.add_seq_to_image,
                              mix_bias=self.add_seq_to_image_mix_bias)
 
 
-def net_params(
-    input_size,
-    seq_size,
-    output_width,
-    initial_attn_ch,
-    ch_coefficient=1.0,
-    depth_coefficient=1.0,
-    start_width=4,
-    non_local_width=64,
-    start_ch=128,
-    start_ch_per_head=32,
-    max_ch=512,
-    chan_reduce_multiplier=2,
-    norm_style='bn',
-    show_info=True,
-    use_seq_to_image=True,
-    use_image_to_seq=True,
-    use_seq_block=False,
-    checkpoint_conv=False,
-    use_base_transformer=True,
-    only_descending_ch=False,
-    add_seq_to_image=False,
-    add_seq_to_image_mix_bias=-10.0,
-    add_image_to_seq_mix_bias=-10.0,
-    base_transformer_n_layers=4,
-    seq_transformer_n_layers=4,
-    full_attn_ch=False,
-    seq_to_image_start_use_feat_to_output=True,
-    full_seq_frequency=False,
-    use_nonlocal=False,
-    use_se=True,
-):
+def net_params(input_size, output_width, cfg):
     """Create BlockArgs and GlobalParams
 
     Args:
@@ -200,44 +159,33 @@ def net_params(
         blocks_args, global_params.
     """
 
-    get_num_upsamples = lambda x: math.ceil(math.log2(x / start_width))
+    get_num_upsamples = lambda x: math.ceil(math.log2(x / cfg.start_width))
 
     num_upsamples = get_num_upsamples(output_width)
-    nonlocal_index = get_num_upsamples(non_local_width)
+    nonlocal_index = get_num_upsamples(cfg.nonlocal_width)
 
-    start_ch *= ch_coefficient
-    max_ch *= ch_coefficient
-
-    # TODO: change this
-    increase_upsamples = num_upsamples // 2
-    ch_per_increase = (max_ch - start_ch) / increase_upsamples
-
-    num_repeat = 2  # TODO: better approach
+    # right now, ch_coefficient only effects start_ch, so it is effectively
+    # not needed.
+    start_ch = cfg.start_ch * cfg.ch_coefficient
+    num_repeat = round(2 * cfg.depth_coefficient)  # TODO: better approach
 
     blocks_args = []
 
-    if only_descending_ch:
-        start_ch = max_ch
-        increase_upsamples = 0
+    input_ch = start_ch
+    output_ch = None
 
-    ch_before = start_ch
-
-    attn_ch = initial_attn_ch
+    assert not cfg.norm_style.startswith('gn'), "group norm not supported"
 
     # TODO: tuning
     for i in range(num_upsamples):
-        if i < increase_upsamples:
-            ch_after = ch_before + ch_per_increase
+        if i < cfg.constant_ch_blocks:
+            output_ch = input_ch
         else:
-            ch_after = ch_before / chan_reduce_multiplier
-            attn_ch /= chan_reduce_multiplier
-        if full_attn_ch and add_seq_to_image:
-            attn_ch = ch_after
+            output_ch = input_ch / 2
 
-        input_ch = round(ch_before)
-        output_ch = round(ch_after)
+        attn_ch = output_ch * cfg.attn_ch_frac
 
-        if show_info:
+        if cfg.show_model_info:
             print("Layer {} input ch: {}, output ch: {}, attn ch: {}".format(
                 i, input_ch, output_ch, attn_ch))
 
@@ -245,51 +193,48 @@ def net_params(
 
         blocks_args.append(
             BlockArgs(
-                num_repeat=round(num_repeat * depth_coefficient),
-                # TODO: does 5 x 5 improve things in some cases?
+                num_repeat=num_repeat,
+                # TODO: is 5x5 worthwhile?
                 kernel_size=3,
                 upsample=True,
                 # TODO: tune
                 expand_ratio=expand_ratio,
-                input_ch=input_ch,
-                output_ch=output_ch,
-                se_ratio=0.25 if use_se else None,
-                seq_size=seq_size,
-                attn_output_ch=round(attn_ch),
+                input_ch=round(input_ch),
+                output_ch=round(output_ch),
+                se_ratio=0.25 if cfg.use_se else None,
+                use_position_ch=not cfg.no_position_ch,
+                seq_size=cfg.seq_size,
+                attn_ch=round(attn_ch),
                 seq_n_heads=8,
-                transformer_n_layers=seq_transformer_n_layers,
-                image_n_heads=2,
-                norm_style=norm_style,
-                # TODO: fix hack
-                round_by=16 if norm_style.startswith('gn') else 1,
-                show_info=show_info,
-                use_seq_to_image=use_seq_to_image,
-                use_image_to_seq=use_image_to_seq,
-                use_seq_block=use_seq_block,
-                add_seq_to_image=add_seq_to_image,
-                add_seq_to_image_mix_bias=add_seq_to_image_mix_bias,
-                add_image_to_seq_mix_bias=add_image_to_seq_mix_bias,
-                full_seq_frequency=full_seq_frequency,
+                transformer_n_layers=cfg.seq_transformer_n_layers,
+                image_n_heads=2,  # TODO: test making fixed per...
+                norm_style=cfg.norm_style,
+                use_seq_to_image=not cfg.no_seq_to_image,
+                use_image_to_seq=not cfg.no_image_to_seq,
+                use_seq_block=cfg.use_seq_blocks,
+                add_seq_to_image=not cfg.no_add_seq_to_image,
+                add_seq_to_image_mix_bias=cfg.add_seq_to_image_mix_bias,
+                add_image_to_seq_mix_bias=cfg.add_image_to_seq_mix_bias,
+                full_seq_frequency=cfg.full_seq_frequency,
             ))
-
-        ch_before = ch_after
+        input_ch = output_ch
 
     global_args = GlobalArgs(
-        start_width=start_width,
+        start_width=cfg.start_width,
         end_width=output_width,
         input_size=input_size,
-        seq_size=seq_size,
+        seq_size=cfg.seq_size,
         base_transformer_n_heads=8,
-        base_transformer_n_layers=base_transformer_n_layers,
+        base_transformer_n_layers=cfg.base_transformer_n_layers,
         nonlocal_index=nonlocal_index,
-        use_nonlocal=use_nonlocal,
+        use_nonlocal=cfg.use_nonlocal,
         start_ch=round(start_ch),
-        ch_per_head=start_ch_per_head,
-        norm_style=norm_style,
-        checkpoint_conv=checkpoint_conv,
-        use_base_transformer=use_base_transformer,
-        seq_to_image_start_use_feat_to_output=
-        seq_to_image_start_use_feat_to_output,
+        norm_style=cfg.norm_style,
+        checkpoint_conv=cfg.checkpoint_conv,
+        use_base_transformer=not cfg.no_base_transformer,
+        seq_to_image_start_use_feat_to_output=not cfg.
+        no_seq_to_image_start_use_feat_to_output,
+        ch_per_head=32,
     )
 
     return blocks_args, global_args
