@@ -421,8 +421,16 @@ class SeqToImageStart(nn.Module):
 
 
 MBConvCfg = collections.namedtuple('MBConvCfg', [
-    'input_ch', 'output_ch', 'upsample', 'expand_ratio', 'kernel_size',
-    'norm_style', 'se_ratio', 'use_position_ch'
+    'input_ch',
+    'seq_size',
+    'output_ch',
+    'upsample',
+    'expand_ratio',
+    'kernel_size',
+    'norm_style',
+    'se_ratio',
+    'use_position_ch',
+    'attn_excitation',
 ])
 
 
@@ -491,6 +499,19 @@ class MBConvGBlock(nn.Module):
             self._se_expand = nn.Conv2d(in_channels=num_squeezed_channels,
                                         out_channels=oup,
                                         kernel_size=1)
+        elif self.cfg.attn_excitation:
+            attn_ratio = 0.25
+            num_squeezed_channels = max(1, int(self.cfg.input_ch * attn_ratio))
+            num_heads = 2  # TODO
+            self._attn_for_excitation = MultiHeadedSelfAttention(
+                self.cfg.seq_size, oup, num_squeezed_channels,
+                num_squeezed_channels, num_heads)
+            self._attn_expand = nn.Conv2d(in_channels=num_squeezed_channels,
+                                          out_channels=oup,
+                                          kernel_size=1)
+
+
+
 
         # Pointwise convolution phase
         final_oup = self.cfg.output_ch
@@ -502,7 +523,7 @@ class MBConvGBlock(nn.Module):
 
         self._upsample = functools.partial(F.interpolate, scale_factor=2)
 
-    def forward(self, inputs, position_ch):
+    def forward(self, inputs, position_ch, seq):
         """MBConvBlock's forward function.
 
         Args:
@@ -544,6 +565,13 @@ class MBConvGBlock(nn.Module):
             x_squeezed = self._swish(x_squeezed)
             x_squeezed = self._se_expand(x_squeezed)
             x = torch.sigmoid(x_squeezed) * x
+        elif self.cfg.attn_excitation:
+            attn_map = self._swish(
+                seq_to_width(
+                    self._attn_for_excitation(seq, width_to_seq(x)),
+                    x.size(-1)))
+            expanded_attn = self._attn_expand(attn_map)
+            x = torch.sigmoid(expanded_attn) * x
 
         # Pointwise Convolution
         x = self._project_conv(x)

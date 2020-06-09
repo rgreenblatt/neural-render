@@ -79,6 +79,7 @@ _BlockArgsParams = collections.namedtuple('BlockArgsParams', [
     'add_image_to_seq_mix_bias',
     'full_seq_frequency',
     'alternate_seq_block',
+    'attn_excitation',
 ])
 
 
@@ -222,6 +223,7 @@ def net_params(input_size, output_width, cfg):
                 add_image_to_seq_mix_bias=cfg.add_image_to_seq_mix_bias,
                 full_seq_frequency=cfg.full_seq_frequency,
                 alternate_seq_block=cfg.alternate_seq_block,
+                attn_excitation=cfg.attn_excitation,
             ))
         input_ch = output_ch
 

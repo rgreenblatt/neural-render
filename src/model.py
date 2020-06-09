@@ -150,9 +150,9 @@ class Net(nn.Module):
 
             if self._global_args.checkpoint_conv:
                 image = torch.utils.checkpoint.checkpoint(
-                    image_b, image, this_position_ch)
+                    image_b, image, this_position_ch, seq)
             else:
-                image = image_b(image, this_position_ch)
+                image = image_b(image, this_position_ch, seq)
 
             if image_to_seq_b is not None:
                 seq = image_to_seq_b(seq, image)
