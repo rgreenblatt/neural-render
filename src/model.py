@@ -2,7 +2,7 @@ import torch
 from torch import nn
 
 from layers import (MBConvGBlock, Attention, Transformer, SeqToImageStart,
-                    SeqToImage, ImageToSeq, ConfigurableNorm)
+                    SeqToImage, ImageToSeq, ConfigurableNorm, SeqBlock)
 from utils import Swish, MemoryEfficientSwish, get_position_ch
 
 
@@ -56,13 +56,17 @@ class Net(nn.Module):
                 self._image_blocks.append(
                     MBConvGBlock(block_args.mbconv_args()))
                 self._image_to_seq_blocks.append(
-                    get_block(ImageToSeq, block_args.use_image_to_seq_this_block,
+                    get_block(ImageToSeq,
+                              block_args.use_image_to_seq_this_block,
                               block_args.image_to_seq_args()))
+                which_seq_block = (SeqBlock if block_args.alternate_seq_block
+                                   else Transformer)
                 self._seq_blocks.append(
-                    get_block(Transformer, block_args.use_seq_this_block,
+                    get_block(which_seq_block, block_args.use_seq_this_block,
                               block_args.transformer_args()))
                 self._seq_to_image_blocks.append(
-                    get_block(SeqToImage, block_args.use_seq_to_image_this_block,
+                    get_block(SeqToImage,
+                              block_args.use_seq_to_image_this_block,
                               block_args.seq_to_image_args()))
 
             if (self._global_args.use_nonlocal

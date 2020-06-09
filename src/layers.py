@@ -258,7 +258,7 @@ class MultiHeadedSelfAttention(nn.Module):
 
         if self.is_cross_attn:
             # (B, S_q, D_o) -split + trans-> (B, H, S_q, W_o)
-            pq_split = split_last(pre_query[:,:,:self.output_size],
+            pq_split = split_last(pre_query[:, :, :self.output_size],
                                   (self.n_heads, -1)).transpose(1, 2)
             out = pq_split * (1 - overall_weight) + h * overall_weight
         else:
@@ -272,7 +272,7 @@ class MultiHeadedSelfAttention(nn.Module):
 
         if self.is_cross_attn:
             # add remaining ch
-            out = torch.cat((out, pre_query[:,:,self.output_size:]), dim=2)
+            out = torch.cat((out, pre_query[:, :, self.output_size:]), dim=2)
 
         if self.use_proj_c:
             out = out + c
@@ -566,9 +566,8 @@ class MBConvGBlock(nn.Module):
         self._bn2.reset_running_stats()
 
 
-ImageToSeqCfg = collections.namedtuple('ImageToSeqCfg',
-                                       ['image_ch', 'seq_size',
-                                        'n_heads','mix_bias'])
+ImageToSeqCfg = collections.namedtuple(
+    'ImageToSeqCfg', ['image_ch', 'seq_size', 'n_heads', 'mix_bias'])
 
 
 class ImageToSeq(nn.Module):
@@ -605,14 +604,15 @@ class SeqToImage(nn.Module):
         self._proj_q = nn.Conv2d(self.cfg.image_ch,
                                  self.cfg.output_ch,
                                  kernel_size=1)
-        self._attn = MultiHeadedSelfAttention(self.cfg.seq_size,
-                                              self.cfg.image_ch,
-                                              self.cfg.output_ch,
-                                              self.cfg.output_ch,
-                                              self.cfg.n_heads,
-                                              use_proj_c=False,
-                                              is_cross_attn=self.cfg.add_all_ch,
-                                              mix_bias=self.cfg.mix_bias)
+        self._attn = MultiHeadedSelfAttention(
+            self.cfg.seq_size,
+            self.cfg.image_ch,
+            self.cfg.output_ch,
+            self.cfg.output_ch,
+            self.cfg.n_heads,
+            use_proj_c=False,
+            is_cross_attn=self.cfg.add_all_ch,
+            mix_bias=self.cfg.mix_bias)
 
     # x is seq (B x S x D), y is image type data (B x C x H x W)
     def forward(self, x, masks, counts, y):
@@ -631,6 +631,42 @@ class SeqToImage(nn.Module):
             return added_values
         else:
             return torch.cat((y, added_values), dim=1)
+
+
+class SeqBlock(nn.Module):
+    def __init__(self, cfg):
+        super().__init__()
+
+        self.cfg = cfg
+
+        assert cfg.n_layers == 1  # TODO
+
+        self._ff_block = PositionWiseFeedForward(self.cfg)
+        # TODO: make mix bias configurable
+        self._attn = MultiHeadedSelfAttention(self.cfg.size,
+                                              self.cfg.size,
+                                              self.cfg.size,
+                                              self.cfg.size,
+                                              self.cfg.n_heads,
+                                              is_cross_attn=True,
+                                              mix_bias=0)
+
+        self._swish = MemoryEfficientSwish()
+
+    def set_swish(self, memory_efficient=True):
+        """Sets swish function as memory efficient (for training) or standard
+           (for export).
+
+        Args:
+            memory_efficient (bool): Whether to use memory-efficient version of
+            swish.
+        """
+        self._swish = MemoryEfficientSwish() if memory_efficient else Swish()
+
+    def forward(self, x, masks, counts):
+        y = self._swish(self._ff_block(x))
+
+        return self._attn(y, x, masks, counts)
 
 
 # A non-local block as used in SA-GAN

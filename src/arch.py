@@ -78,6 +78,7 @@ _BlockArgsParams = collections.namedtuple('BlockArgsParams', [
     'add_seq_to_image_mix_bias',
     'add_image_to_seq_mix_bias',
     'full_seq_frequency',
+    'alternate_seq_block',
 ])
 
 
@@ -190,9 +191,8 @@ def net_params(input_size, output_width, cfg):
         attn_ch = output_ch * cfg.attn_ch_frac
 
         if cfg.show_model_info:
-            print(
-                "Layer {} input ch: {}, output ch: {}, attn ch: {}, width: {}".
-                format(i, input_ch, output_ch, attn_ch, width))
+            print("{}: input: {}, output: {}, attn: {}, width: {}, repeat: {}".
+                  format(i, input_ch, output_ch, attn_ch, width, num_repeat))
 
         expand_ratio = 6
 
@@ -221,6 +221,7 @@ def net_params(input_size, output_width, cfg):
                 add_seq_to_image_mix_bias=cfg.add_seq_to_image_mix_bias,
                 add_image_to_seq_mix_bias=cfg.add_image_to_seq_mix_bias,
                 full_seq_frequency=cfg.full_seq_frequency,
+                alternate_seq_block=cfg.alternate_seq_block,
             ))
         input_ch = output_ch
 

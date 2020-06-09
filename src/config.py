@@ -129,7 +129,7 @@ class Config(argparse.Namespace):
         self.parser.add_argument('--depth-coefficient',
                                  type=float,
                                  default=1.0)
-
+        self.parser.add_argument('--alternate-seq-block', action='store_true')
         return self.parser
 
     def __init__(self):
