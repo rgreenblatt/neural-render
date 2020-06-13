@@ -12,10 +12,8 @@ import numpy as np
 from scipy.spatial.transform import Rotation as R
 
 def select_set(obj, value):
-    if bpy.app.version >= (2, 80, 0):
-        obj.select_set(value)
-    else:
-        obj.select = value
+    # Only works in blender >= 2.80
+    obj.select_set(value)
 
 def mkdirs(path):
     Path(path).mkdir(parents=True, exist_ok=True)
