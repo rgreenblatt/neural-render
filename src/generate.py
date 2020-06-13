@@ -232,7 +232,7 @@ def main():
         seed = 0
         use_gpu = True
 
-    save_dir = "data/"
+    save_dir = "generated/seed_{}".format(seed)
 
     mkdirs(save_dir)
 
@@ -252,14 +252,16 @@ def main():
     np.random.seed(seed)
 
     scenes = []
+    blender_seed = np.random.randint(0, 2**31-1)
 
     for i in tqdm(range(count)):
         object_count = np.random.randint(1, 100)
 
+        bpy.context.scene.cycles.seed = blender_seed
+        blender_seed += 1
+
         params = random_scene(object_count, 1.0)
         scene = DisplayBlenderScene(params)
-
-        bpy.context.scene.cycles.seed = np.random.randint(0, 2**31)
 
         if not in_blender_mode:
             render_image("{}/imgs/img_{}.exr".format(save_dir, i))
