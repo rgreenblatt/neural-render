@@ -177,7 +177,7 @@ class DisplayBlenderScene():
             bpy.data.materials.remove(mat)
 
 
-def basic_setup():
+def basic_setup(use_gpu):
     camera = bpy.data.objects["Camera"]
     camera.location = mathutils.Vector((0.0, 0.0, 0.0))
     camera.scale = mathutils.Vector((1.0, 1.0, 1.0))
@@ -195,8 +195,6 @@ def basic_setup():
 
     bpy.context.scene.render.image_settings.file_format = 'OPEN_EXR'
     bpy.context.scene.render.engine = 'CYCLES'
-
-    use_gpu = True
 
     if use_gpu:
         bpy.context.scene.cycles.device = 'GPU'
@@ -218,6 +216,7 @@ def main():
         parser.add_argument('--samples', type=int, default=128)
         parser.add_argument('--count', type=int, default=128)
         parser.add_argument('--seed', type=int, default=0)
+        parser.add_argument('--no-gpu', action='store_true')
         args = parser.parse_args(argv)
 
         bpy.context.scene.render.resolution_x = args.resolution
@@ -227,9 +226,11 @@ def main():
 
         count = args.count
         seed = args.seed
+        use_gpu = not args.no_gpu
     else:
         count = 1
         seed = 0
+        use_gpu = True
 
     save_dir = "data/"
 
@@ -246,7 +247,7 @@ def main():
 
         remove_printing(lambda: bpy.ops.object.delete())
 
-    basic_setup()
+    basic_setup(use_gpu)
 
     np.random.seed(seed)
 
@@ -284,7 +285,7 @@ def display_main():
     with open(pickle_path, 'rb') as f:
         data = pickle.load(f)
 
-    basic_setup()
+    basic_setup(True)
 
     DisplayBlenderScene(data[index])
 
