@@ -11,6 +11,11 @@ import mathutils
 import numpy as np
 from scipy.spatial.transform import Rotation as R
 
+def select_set(obj, value):
+    if bpy.app.version >= (2, 80, 0):
+        obj.select_set(value)
+    else:
+        obj.select = value
 
 def mkdirs(path):
     Path(path).mkdir(parents=True, exist_ok=True)
@@ -166,7 +171,7 @@ class DisplayBlenderScene():
         bpy.ops.object.select_all(action='DESELECT')
 
         for sphere in self.spheres:
-            sphere.select_set(True)
+            select_set(sphere, True)
 
         remove_printing(lambda: bpy.ops.object.delete())
 
@@ -236,8 +241,8 @@ def main():
     if not in_blender_mode:
         bpy.ops.object.select_all(action='DESELECT')
 
-        bpy.data.objects['Cube'].select_set(True)
-        bpy.data.objects['Light'].select_set(True)
+        select_set(bpy.data.objects['Cube'], True)
+        select_set(bpy.data.objects['Light'], True)
 
         remove_printing(lambda: bpy.ops.object.delete())
 
