@@ -38,10 +38,8 @@ def render_image(path):
 
 
 def random_location():
-    # base_loc = np.array([0.0, 15.0, 0.0])
-    # translate = np.random.uniform(low=-12.0, high=10.0, size=[3])
-    base_loc = np.array([0.0, 0.0, 0.0])
-    translate = np.random.uniform(low=-2.0, high=2.0, size=[3])
+    base_loc = np.array([0.0, 15.0, 0.0])
+    translate = np.random.uniform(low=-12.0, high=10.0, size=[3])
 
     return base_loc + translate
 
@@ -54,11 +52,10 @@ def random_rotation(scale=1.0):
 
 
 def random_scale(location):
-    # base_scale = np.exp(np.random.normal(loc=-3.0)) * location[1]
-    # components_scale = np.random.uniform(low=0.5, high=1.5, size=[3])
+    base_scale = np.exp(np.random.normal(loc=-3.0)) * location[1]
+    components_scale = np.random.uniform(low=0.5, high=1.5, size=[3])
 
-    # return base_scale * components_scale
-    return np.random.uniform(low=0.5, high=1.5, size=[3])
+    return base_scale * components_scale
 
 
 def random_material():
@@ -178,29 +175,32 @@ class DisplayBlenderScene():
 
 
 def basic_setup():
-    # camera = bpy.data.objects["Camera"]
-    # camera.location = mathutils.Vector((0.0, 0.0, 0.0))
-    # camera.scale = mathutils.Vector((1.0, 1.0, 1.0))
-    # camera.rotation_euler[0] = math.pi / 2
-    # camera.rotation_euler[1] = 0.0
-    # camera.rotation_euler[2] = 0.0
+    camera = bpy.data.objects["Camera"]
+    camera.location = mathutils.Vector((0.0, 0.0, 0.0))
+    camera.scale = mathutils.Vector((1.0, 1.0, 1.0))
+    camera.rotation_euler[0] = math.pi / 2
+    camera.rotation_euler[1] = 0.0
+    camera.rotation_euler[2] = 0.0
 
     # make background dark
-    # bpy.data.worlds["World"].node_tree.nodes["Background"].inputs[
-    #     0].default_value = (0, 0, 0, 1)
+    bpy.data.worlds["World"].node_tree.nodes["Background"].inputs[
+        0].default_value = (0, 0, 0, 1)
 
     # sometimes required to "refresh" devices (doesn't need to be printed)
     print("devices are:",
           bpy.context.preferences.addons['cycles'].preferences.get_devices())
 
     bpy.context.scene.render.image_settings.file_format = 'OPEN_EXR'
-    bpy.context.scene.render.engine = 'BLENDER_EEVEE'
-    # bpy.context.scene.render.engine = 'CYCLES'
-    # bpy.context.scene.cycles.device = 'GPU'
-    # bpy.context.preferences.addons[
-    #     'cycles'].preferences.compute_device_type = "CUDA"
-    # bpy.context.scene.render.tile_x = 256
-    # bpy.context.scene.render.tile_y = 256
+    bpy.context.scene.render.engine = 'CYCLES'
+
+    use_gpu = True
+
+    if use_gpu:
+        bpy.context.scene.cycles.device = 'GPU'
+        bpy.context.preferences.addons[
+            'cycles'].preferences.compute_device_type = "CUDA"
+        bpy.context.scene.render.tile_x = 256
+        bpy.context.scene.render.tile_y = 256
 
 
 def main():
@@ -211,7 +211,7 @@ def main():
         argv = argv[argv.index("--") + 1:]  # get all args after "--"
 
         parser = argparse.ArgumentParser()
-        parser.add_argument('--resolution', type=int, default=128)
+        parser.add_argument('--resolution', type=int, default=1024)
         parser.add_argument('--samples', type=int, default=128)
         parser.add_argument('--count', type=int, default=128)
         parser.add_argument('--seed', type=int, default=0)
@@ -240,7 +240,7 @@ def main():
         bpy.ops.object.select_all(action='DESELECT')
 
         bpy.data.objects['Cube'].select_set(True)
-        # bpy.data.objects['Light'].select_set(True)
+        bpy.data.objects['Light'].select_set(True)
 
         remove_printing(lambda: bpy.ops.object.delete())
 
@@ -251,7 +251,7 @@ def main():
     scenes = []
 
     for i in tqdm(range(count)):
-        object_count = np.random.randint(1, 8)
+        object_count = np.random.randint(1, 100)
 
         params = random_scene(object_count, 1.0)
         scene = DisplayBlenderScene(params)
