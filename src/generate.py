@@ -241,8 +241,10 @@ def main():
     if not in_blender_mode:
         bpy.ops.object.select_all(action='DESELECT')
 
-        select_set(bpy.data.objects['Cube'], True)
-        select_set(bpy.data.objects['Light'], True)
+        if 'Cube' in bpy.data.objects:
+            select_set(bpy.data.objects['Cube'], True)
+        if 'Light' in bpy.data.objects:
+            select_set(bpy.data.objects['Light'], True)
 
         remove_printing(lambda: bpy.ops.object.delete())
 
