@@ -351,3 +351,7 @@ the results with 4 and 2 gpus were similar. It looks like the learning rate
 is right on the edge of too high.
 
 For now, I will keep position_ch.
+
+I adjusted channels so that it stays the same and then goes down.
+This performed slightly worse actually. Not sure why. Switching to path
+traced images.
