@@ -253,9 +253,9 @@ def main():
         params = random_scene(object_count, 1.0)
         scene = DisplayBlenderScene(params)
 
-        if not in_blender_mode:
-            bpy.context.scene.cycles.seed = np.random.randint(0, 2**31)
+        bpy.context.scene.cycles.seed = np.random.randint(0, 2**31)
 
+        if not in_blender_mode:
             render_image("{}/imgs/img_{}.exr".format(save_dir, i))
 
             scene.cleanup()
