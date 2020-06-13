@@ -215,7 +215,6 @@ def main():
         parser.add_argument('--samples', type=int, default=128)
         parser.add_argument('--count', type=int, default=128)
         parser.add_argument('--seed', type=int, default=0)
-        parser.add_argument('--max-batch-size', type=int, default=64)
         args = parser.parse_args(argv)
 
         bpy.context.scene.render.resolution_x = args.resolution
@@ -225,11 +224,9 @@ def main():
 
         count = args.count
         seed = args.seed
-        max_batch_size = args.max_batch_size
     else:
         count = 1
         seed = 0
-        max_batch_size = 1
 
     save_dir = "data/"
 
@@ -257,6 +254,8 @@ def main():
         scene = DisplayBlenderScene(params)
 
         if not in_blender_mode:
+            bpy.context.scene.cycles.seed = np.random.randint(0, 2**31)
+
             render_image("{}/imgs/img_{}.exr".format(save_dir, i))
 
             scene.cleanup()
