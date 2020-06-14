@@ -51,7 +51,9 @@ def stopwatch(message):
         yield
     finally:
         t1 = time.time()
-        print('Total elapsed time for %s: %.3f' % (message, t1 - t0))
+        print('Total elapsed time for %s: %.3f' % (message, t1 - t0),
+              flush=True)
+
 
 if __name__ == "__main__":
     cfg = GenerateUploadConfig()
@@ -64,7 +66,11 @@ if __name__ == "__main__":
     while True:
         os.system("{} -- {} --seed {}".format(base_cmd,
                                               cfg.base_as_arg_string(), seed))
-        seed += 1
+        base_dir_name = 'generated'
+        dir_name = os.path.join(base_dir_name, 'seed_{}'.format(seed))
+        shutil.make_archive(dir_name, 'zip', dir_name)
+        shutil.rmtree(dir_name)
+        upload_dir(dbx, base_dir_name, cfg.app_dir)
+        shutil.rmtree(base_dir_name)
 
-        upload_dir(dbx, "generated", cfg.app_dir)
-        shutil.rmtree("generated")
+        seed += 1
