@@ -10,7 +10,7 @@ import numpy as np
 
 from generate_config import GenerateUploadConfig
 
-def upload_file(dbx, fullname, folder, subfolder, name, overwrite=False):
+def upload_file(dbx, fullname, folder, subfolder, name, overwrite=True):
     """Upload a file.
     Return the request response, or None in case of error.
     """
@@ -70,7 +70,12 @@ if __name__ == "__main__":
         dir_name = os.path.join(base_dir_name, 'seed_{}'.format(seed))
         shutil.make_archive(dir_name, 'zip', dir_name)
         shutil.rmtree(dir_name)
-        upload_dir(dbx, base_dir_name, cfg.app_dir)
+        for i in range(5):
+            try:
+                upload_dir(dbx, base_dir_name, cfg.app_dir)
+                break
+            except Exception as e:
+                print("FAILED UPLOAD with err:", e)
         shutil.rmtree(base_dir_name)
 
         seed += 1
