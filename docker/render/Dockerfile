@@ -56,7 +56,8 @@ RUN apt-get update && apt-get install -y \
         vim \
         zip \
         build-essential \
-        git
+        git \
+        python3 \
+        python3-pip
 
-RUN conda install numpy pip scipy
-RUN pip install dropbox
+RUN pip3 install dropbox numpy scipy
