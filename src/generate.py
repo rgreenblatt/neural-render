@@ -200,6 +200,7 @@ def basic_setup(use_gpu):
           bpy.context.preferences.addons['cycles'].preferences.get_devices())
 
     bpy.context.scene.render.image_settings.file_format = 'OPEN_EXR'
+    bpy.context.scene.render.image_settings.exr_codec = 'PIZ'
     bpy.context.scene.render.engine = 'CYCLES'
 
     if use_gpu:
