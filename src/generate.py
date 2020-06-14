@@ -11,9 +11,15 @@ import mathutils
 import numpy as np
 from scipy.spatial.transform import Rotation as R
 
+from generate_config import GenerateConfig
+from gen_utils import random_seed
+from constants import pickle_name, get_img_path
+
+
 def select_set(obj, value):
     # Only works in blender >= 2.80
     obj.select_set(value)
+
 
 def mkdirs(path):
     Path(path).mkdir(parents=True, exist_ok=True)
@@ -204,35 +210,30 @@ def basic_setup(use_gpu):
         bpy.context.scene.render.tile_y = 256
 
 
-def main():
-    in_blender_mode = False
-
+def main(in_blender_mode=False):
     if not in_blender_mode:
         argv = sys.argv
-        argv = argv[argv.index("--") + 1:]  # get all args after "--"
+        try:
+            argv = argv[argv.index("--") + 1:]  # get all args after "--"
+        except ValueError:
+            argv = []
 
-        parser = argparse.ArgumentParser()
-        parser.add_argument('--resolution', type=int, default=1024)
-        parser.add_argument('--samples', type=int, default=128)
-        parser.add_argument('--count', type=int, default=128)
-        parser.add_argument('--seed', type=int, default=0)
-        parser.add_argument('--no-gpu', action='store_true')
-        args = parser.parse_args(argv)
+        cfg = GenerateConfig(argv)
 
-        bpy.context.scene.render.resolution_x = args.resolution
-        bpy.context.scene.render.resolution_y = args.resolution
+        bpy.context.scene.render.resolution_x = cfg.resolution
+        bpy.context.scene.render.resolution_y = cfg.resolution
 
-        bpy.context.scene.cycles.samples = args.samples
+        bpy.context.scene.cycles.samples = cfg.samples
 
-        count = args.count
-        seed = args.seed
-        use_gpu = not args.no_gpu
+        count = cfg.count
+        seed = cfg.seed
+        use_gpu = not cfg.no_gpu
     else:
         count = 1
         seed = 0
         use_gpu = True
 
-    save_dir = "generated/seed_{}".format(seed)
+    save_dir = os.path.join("generated", "seed_{}".format(seed))
 
     mkdirs(save_dir)
 
@@ -252,7 +253,7 @@ def main():
     np.random.seed(seed)
 
     scenes = []
-    blender_seed = np.random.randint(0, 2**31-1)
+    blender_seed = random_seed()
 
     for i in tqdm(range(count)):
         object_count = np.random.randint(1, 100)
@@ -264,34 +265,16 @@ def main():
         scene = DisplayBlenderScene(params)
 
         if not in_blender_mode:
-            render_image("{}/imgs/img_{}.exr".format(save_dir, i))
+            render_image(get_img_path(i, save_dir))
 
             scene.cleanup()
 
         scenes.append(params)
 
     if not in_blender_mode:
-        with open("{}/scenes.p".format(save_dir), 'wb') as f:
+        with open(os.path.join(save_dir, pickle_name), 'wb') as f:
             pickle.dump(scenes, f)
-
-
-# I would put this in a separate file, but blender python imports are insane
-def display_main():
-    data_path = 'data'
-    pickle_name = 'scenes.p'
-
-    pickle_path = os.path.join(data_path, pickle_name)
-
-    index = 100
-
-    with open(pickle_path, 'rb') as f:
-        data = pickle.load(f)
-
-    basic_setup(True)
-
-    DisplayBlenderScene(data[index])
 
 
 if __name__ == "__main__":
     main()
-    # display_main()

@@ -22,6 +22,7 @@ from utils import (mkdirs, LRSched, linear_to_srgb, LossTracker, ImageTracker,
                    PrintAndLog)
 from criterion import PerceptualLoss
 from config import Config
+from constants import pickle_path, get_img_path
 
 
 def main():
@@ -93,9 +94,6 @@ def main():
     device = torch.device(
         "cuda:{}".format(which_gpu) if torch.cuda.is_available() else "cpu")
 
-    data_path = 'data/'
-    p_path = os.path.join(data_path, 'scenes.p')
-    img_path = os.path.join(data_path, 'imgs')
     batch_size = cfg.batch_size
     valid_prop = 0.2
 
@@ -132,8 +130,8 @@ def main():
         return np.concatenate((inp, mat_arr, rot_vec_arr, cube_points), axis=1)
 
     def get_dataset(start_range, end_range):
-        return load_dataset(p_path,
-                            img_path,
+        return load_dataset(pickle_path,
+                            get_img_path,
                             img_width,
                             batch_size,
                             valid_prop,

@@ -26,12 +26,12 @@ def chunks_drop_last(lst, n):
         yield lst[i:i + n]
 
 class RenderedDataset(torch.utils.data.Dataset):
-    def __init__(self, p_path, img_path, resolution, transform, fake_data,
+    def __init__(self, pickle_path, get_img_path, resolution, transform, fake_data,
                  process_input, start_range, end_range):
         if not fake_data:
-            with open(p_path, "rb") as f:
+            with open(pickle_path, "rb") as f:
                 self.data = pickle.load(f)[start_range:end_range]
-        self.img_path = img_path
+        self.get_img_path = get_img_path
         self.transform = transform
         self.resolution = resolution
         self.fake_data = fake_data
@@ -42,8 +42,7 @@ class RenderedDataset(torch.utils.data.Dataset):
             image = np.zeros((self.resolution, self.resolution, 3))
             inp = np.ones((1, 20)) # TODO: fix hardcoded size...
         else:
-            image = load_exr(
-                os.path.join(self.img_path, "img_{}.exr".format(index)))
+            image = load_exr(get_img_path(index))
 
             assert image.shape[0] == image.shape[1], "must be square"
 
@@ -179,8 +178,8 @@ class SubsetRandomDistributedSampler(torch.utils.data.sampler.Sampler):
         self.epoch = epoch
 
 
-def load_dataset(p_path,
-                 img_path,
+def load_dataset(pickle_path,
+                 get_img_path,
                  resolution,
                  batch_size,
                  validation_prop,
@@ -193,8 +192,8 @@ def load_dataset(p_path,
                  end_range=-1,
                  num_replicas=1,
                  rank=0):
-    dataset = RenderedDataset(p_path,
-                              img_path,
+    dataset = RenderedDataset(pickle_path,
+                              get_img_path,
                               resolution,
                               transform=ToTensor(),
                               fake_data=fake_data,

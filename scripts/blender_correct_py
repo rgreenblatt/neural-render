@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+
+# this will fail for blender < 2.82
+PYTHONPATH=$PWD/src blender --python-use-system-env "$@"

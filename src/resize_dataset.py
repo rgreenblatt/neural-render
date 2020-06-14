@@ -7,6 +7,7 @@ from tqdm import tqdm
 
 from utils import resize, mkdirs
 from load_data import load_exr, write_exr
+from constants import pickle_name, data_path, imgs_dir_name, get_img_path
 
 
 def main():
@@ -16,22 +17,18 @@ def main():
     args = parser.parse_args()
 
     # TODO: fix path hard coding (constants file etc)
-    pickle_name = 'scenes.p'
-    orig_dir = 'data/'
 
-    pickle_path = os.path.join(orig_dir, pickle_name)
+    pickle_path = os.path.join(data_path, pickle_name)
 
     with open(pickle_path, 'rb') as f:
         data = pickle.load(f)
 
-    mkdirs(os.path.join(args.output_dir, "imgs/"))
+    mkdirs(os.path.join(args.output_dir, imgs_dir_name))
 
     for i in tqdm(range(len(data))):
-        img = load_exr(os.path.join(orig_dir, "imgs", "img_{}.exr".format(i)))
+        img = load_exr(get_img_path(i))
         resized = resize(img, args.new_size)
-        write_exr(
-            os.path.join(args.output_dir, "imgs", "img_{}.exr".format(i)),
-            resized)
+        write_exr(get_img_path(i, args.output_dir), resized)
     shutil.copy(pickle_path, os.path.join(args.output_dir, pickle_name))
 
 
