@@ -10,7 +10,7 @@ class BaseConfig(argparse.Namespace):
 
         parser.add_argument('--resolution', type=int, default=1024)
         parser.add_argument('--samples', type=int, default=128)
-        parser.add_argument('--count', type=int, default=128)
+        parser.add_argument('--count', type=int, default=16)
         parser.add_argument('--no-gpu', action='store_true')
 
         return parser
@@ -58,8 +58,8 @@ class VastAIManagerConfig(BaseConfig):
 
         parser.add_argument("api_key")
         parser.add_argument("--max-dl-per-hour", type=float, default=2.0)
-        parser.add_argument("--bid-multiplier", type=float, default=1.1)
-        parser.add_argument("--min-dur-hours", type=float, default=2.0)
+        parser.add_argument("--bid-multiplier", type=float, default=1.05)
+        parser.add_argument("--min-dur-hours", type=float, default=1.0)
         parser.add_argument("--storage", type=float, default=20.0)
         parser.add_argument("--min-inet-up", type=float, default=10.0)
         parser.add_argument("--min-inet-down", type=float, default=5.0)
