@@ -1,4 +1,4 @@
-FROM nvidia/cudagl:10.1-base-ubuntu18.04
+FROM nvidia/cudagl:10.0-base-ubuntu18.04
 
 ENV DEBIAN_FRONTEND noninteractive
 ENV LC_ALL C.UTF-8
