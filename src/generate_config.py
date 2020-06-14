@@ -51,3 +51,21 @@ class GenerateUploadConfig(BaseConfig):
         parser.add_argument("--app-dir", default="sphere_renders")
 
         return parser
+
+class VastAIManagerConfig(BaseConfig):
+    def build_parser(self):
+        parser = self.build_base_parser()
+
+        parser.add_argument("api_key")
+        parser.add_argument("--max-dl-per-hour", type=float, default=2.0)
+        parser.add_argument("--bid-multiplier", type=float, default=1.1)
+        parser.add_argument("--min-dur-hours", type=float, default=2.0)
+        parser.add_argument("--storage", type=float, default=20.0)
+        parser.add_argument("--min-inet-up", type=float, default=10.0)
+        parser.add_argument("--min-inet-down", type=float, default=5.0)
+        parser.add_argument("--usable-dl-perf", type=float, default=20.0)
+        parser.add_argument("--min-cuda", type=float, default=10.0)
+        parser.add_argument("--image",
+                            default="greenblattryan/neural-render-render-only")
+
+        return parser
