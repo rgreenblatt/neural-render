@@ -52,6 +52,7 @@ class GenerateUploadConfig(BaseConfig):
 
         return parser
 
+
 class VastAIManagerConfig(BaseConfig):
     def build_parser(self):
         parser = self.build_base_parser()

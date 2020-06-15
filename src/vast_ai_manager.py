@@ -9,13 +9,16 @@ from gen_utils import random_seed
 
 def json_vast_command(*args):
     for i in range(5):
-        try:
-            out = subprocess.run(['vast', *args], capture_output=True)
+        out = subprocess.run(['vast', *args], capture_output=True)
 
+        try:
             return json.loads(out.stdout)
         except json.decoder.JSONDecodeError as e:
             print("json err:", e)
+            print()
+            print("json:", out)
             time.sleep(1.0)
+            print("retrying")
 
     raise ValueError
 
@@ -39,6 +42,8 @@ def sort_filter_offers(offers, cfg):
             continue
         if offer['cuda_max_good'] < cfg.min_cuda:
             continue
+        if offer['dlperf'] is None:
+            continue
 
         offer['min_bid'] = max(offer['min_bid'], 0.001)
         total_cost = get_total_cost(offer, cfg.storage)
@@ -46,6 +51,8 @@ def sort_filter_offers(offers, cfg):
         dlperf_per_total_cost = effective_dl_perf / total_cost
 
         if dlperf_per_total_cost < cfg.min_dlperf_per_total_cost:
+            if 'label' in offer:
+                print("existing filtered out:", dlperf_per_total_cost)
             continue
 
         out_offers.append(
@@ -79,9 +86,9 @@ def create_instance(id_i, bid, label, base_seed, cfg):
         str(id_i), '--price',
         str(bid), '--disk',
         str(cfg.storage), '--image', cfg.image, '--label', label,
-        '--onstart-cmd',
-        'cd ~/neural-render && git pull && nohup python3 src/generate_upload.py ' +
-        '{} --seed {} {}'.format(
+        '--onstart-cmd', 'cd ~/neural-render && sleep 5 && git pull && ' +
+        'nohup python3 src/generate_upload.py ' +
+        '{} --base-seed {} {}'.format(
             cfg.api_key, base_seed,
             cfg.base_as_arg_string() + ' &> ~/render.log &')
     ]
@@ -131,6 +138,7 @@ def main():
                     or instance['intended_status'] == 'stopped'):
                 print("outbid instance:", instance['label'], flush=True)
 
+                assert 'label' in instance
                 all_offers.append(instance)
                 to_destroy_if_not_bid.append(instance['label'])
 
@@ -165,10 +173,19 @@ def main():
             else:
                 add_instance = False
 
-            if add_instance:
-                total_cost += this_total_cost
+            is_existing = 'label' in offer
 
-                is_existing = 'label' in offer
+            if is_existing and not add_instance:
+                print("not bidding on existing instance: perf/cost:",
+                      dlperf_per_total_cost, "total_cost:", total_cost,
+                      "this_total_cost:", this_total_cost)
+
+            if add_instance:
+                print("selected instance: perf/cost:", dlperf_per_total_cost,
+                      "total_cost:", total_cost, "this_total_cost:",
+                      this_total_cost, "existing?:", is_existing)
+
+                total_cost += this_total_cost
 
                 if is_existing:
                     label = offer['label']
