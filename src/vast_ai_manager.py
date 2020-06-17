@@ -228,7 +228,8 @@ def main():
             print(label, "at seed", instance.base_seed, "perf/cost:",
                   instance.dlperf_per_total_cost, "total cost:",
                   instance.total_cost, "gpu type:", instance.offer["gpu_name"],
-                  "n gpus:", instance.offer["num_gpus"])
+                  "n gpus:", instance.offer["num_gpus"], "machine id:",
+                  instance.offer['machine_id'])
         print(flush=True)
 
         time.sleep(10.0)
