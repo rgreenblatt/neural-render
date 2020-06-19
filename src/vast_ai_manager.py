@@ -199,7 +199,9 @@ def main():
                 instance_labels.append(label)
                 if is_existing:
                     instances[label] = instances[label]._replace(
-                        total_cost=this_total_cost)
+                        dlperf_per_total_cost=dlperf_per_total_cost,
+                        total_cost=this_total_cost,
+                    )
                     to_destroy_if_not_bid.remove(label)
 
                     print("bidding up:",
