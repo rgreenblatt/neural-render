@@ -10,7 +10,7 @@ import dropbox
 from tqdm import tqdm
 
 from constants import pickle_name, get_img_path, imgs_dir_name
-from dropbox_utils import download, list_folder
+from dropbox_utils import download, list_folder, stopwatch_if
 from utils import mkdirs, resize
 from data_utils import load_exr, write_exr
 
@@ -31,6 +31,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('api_key')
     parser.add_argument('--resize-to', type=int, default=None)
+    parser.add_argument('--show-times', action='store_true')
     args = parser.parse_args()
 
     dbx = dropbox.Dropbox(args.api_key)
@@ -51,26 +52,29 @@ def main():
 
     p = Pool(16)
 
-    for file in tqdm(files):
+    for file in files if args.show_times else tqdm(files):
         shutil.rmtree(download_dir, ignore_errors=True)
         mkdirs(download_dir)
 
         output_file = "downloads/{}".format(file)
-        download(dbx,
-                 "/sphere_renders/{}".format(file),
-                 output_file,
-                 verbose=False)
-        with zipfile.ZipFile(output_file, 'r') as zip_ref:
-            zip_ref.extractall(download_dir)
+        with stopwatch_if('download', args.show_times):
+            download(dbx,
+                     "/sphere_renders/{}".format(file),
+                     output_file,
+                     verbose=False)
+        with stopwatch_if('extract', args.show_times):
+            with zipfile.ZipFile(output_file, 'r') as zip_ref:
+                zip_ref.extractall(download_dir)
 
         with open(pickle_path, 'rb') as f:
             data = pickle.load(f)
 
         all_data.extend(data)
 
-        p.map(
-            functools.partial(copy_image, download_dir, overall_index,
-                              output_dir, args), range(len(data)))
+        with stopwatch_if('copy', args.show_times):
+            p.map(
+                functools.partial(copy_image, download_dir, overall_index,
+                                  output_dir, args), range(len(data)))
         overall_index += len(data)
 
     p.close()

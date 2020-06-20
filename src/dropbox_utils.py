@@ -18,6 +18,9 @@ def stopwatch(message):
         print('Total elapsed time for %s: %.3f' % (message, t1 - t0),
               flush=True)
 
+def stopwatch_if(message, use):
+    return stopwatch(message) if use else suppress()
+
 
 def list_folder(dbx, folder, subfolder, verbose=True):
     """List a folder.
@@ -30,8 +33,7 @@ def list_folder(dbx, folder, subfolder, verbose=True):
     path = path.rstrip('/')
     entries = []
     try:
-        context = stopwatch('list_folder') if verbose else suppress()
-        with context:
+        with stopwatch_if('list_folder', verbose):
             res = dbx.files_list_folder(path)
             entries.extend(res.entries)
             has_more = res.has_more
@@ -47,7 +49,13 @@ def list_folder(dbx, folder, subfolder, verbose=True):
         return entries
 
 
-def upload_file(dbx, fullname, folder, subfolder, name, overwrite=True, verbose=True):
+def upload_file(dbx,
+                fullname,
+                folder,
+                subfolder,
+                name,
+                overwrite=True,
+                verbose=True):
     """Upload a file.
     Return the request response, or None in case of error.
     """
@@ -59,9 +67,7 @@ def upload_file(dbx, fullname, folder, subfolder, name, overwrite=True, verbose=
     mtime = os.path.getmtime(fullname)
     with open(fullname, 'rb') as f:
         data = f.read()
-    context = stopwatch('upload %d bytes' %
-                        len(data)) if verbose else suppress()
-    with context:
+    with stopwatch_if('upload %d bytes' % len(data), verbose):
         try:
             res = dbx.files_upload(
                 data,
@@ -92,8 +98,7 @@ def download(dbx, path, local_path, verbose=True):
     """
     while '//' in path:
         path = path.replace('//', '/')
-    context = stopwatch('download') if verbose else suppress()
-    with context:
+    with stopwatch_if('download', verbose):
         try:
             md, res = dbx.files_download(path)
         except dropbox.exceptions.HttpError as err:
