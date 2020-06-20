@@ -52,9 +52,6 @@ def main():
     files = files[args.start:args.end]
     files = [data[1] for data in files]
 
-    print(len(files))
-    return
-
     pickle_path = os.path.join(download_dir, pickle_name)
 
     all_data = []
