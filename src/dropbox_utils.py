@@ -5,6 +5,7 @@ import time
 
 import dropbox
 
+
 @contextlib.contextmanager
 def stopwatch(message):
     """Context manager to print how long a block of code took."""
@@ -26,17 +27,22 @@ def list_folder(dbx, folder, subfolder):
     while '//' in path:
         path = path.replace('//', '/')
     path = path.rstrip('/')
+    entries = []
     try:
         with stopwatch('list_folder'):
             res = dbx.files_list_folder(path)
+            entries.extend(res.entries)
+            has_more = res.has_more
+            while has_more:
+                res = dbx.files_list_folder_continue(res.cursor)
+                entries.extend(res.entries)
+                has_more = res.has_more
+
     except dropbox.exceptions.ApiError as err:
-        print('Folder listing failed for', path, '-- assumed empty:', err)
-        return {}
+        print('Folder listing failed for', path, 'err:', err)
+        return []
     else:
-        rv = {}
-        for entry in res.entries:
-            rv[entry.name] = entry
-        return rv
+        return entries
 
 
 def upload_file(dbx, fullname, folder, subfolder, name, overwrite=True):
@@ -73,3 +79,24 @@ def upload_dir(dbx, dirname, remote_dir_name):
         for name in files:
             fullname = os.path.join(dn, name)
             upload_file(dbx, fullname, remote_dir_name, subfolder, name)
+
+
+def download(dbx, path, local_path):
+    """Download a file.
+    Return the bytes of the file, or None if it doesn't exist.
+    """
+    while '//' in path:
+        path = path.replace('//', '/')
+    with stopwatch('download'):
+        try:
+            md, res = dbx.files_download(path)
+        except dropbox.exceptions.HttpError as err:
+            print('*** HTTP error', err)
+            return None
+    data = res.content
+    print(len(data), 'bytes; md:', md)
+
+    with open(local_path, 'wb') as f:
+        f.write(data)
+
+    return data

@@ -56,7 +56,8 @@ RUN apt-get update && apt-get install -y \
         vim \
         zip \
         build-essential \
-        git
+        git \
+        libopenexr-dev
 
 RUN conda install numpy tensorboard pip scipy
-RUN pip install imageio gitpython dropbox && imageio_download_bin freeimage
+RUN pip install imageio gitpython dropbox openexr && imageio_download_bin freeimage

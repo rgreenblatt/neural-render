@@ -7,16 +7,30 @@ import torchvision
 import torch
 import numpy as np
 import imageio
-from utils import resize
 import itertools
+import OpenEXR
+import Imath
+
+from utils import resize
 
 
 def load_exr(path):
-    return imageio.imread(path)[:, :, :3]
+    # imagio doesn't work to load exrs in PIZ format...
+    img = OpenEXR.InputFile(path)
+
+    dw = img.header()['dataWindow']
+    isize = (dw.max.y - dw.min.y + 1, dw.max.x - dw.min.x + 1)
+    C = img.channels("RGB", Imath.PixelType(Imath.PixelType.FLOAT))
+    C = (np.fromstring(c, dtype=np.float32) for c in C)
+    C = (np.reshape(c, isize) for c in C)
+    img = np.concatenate([c[..., None] for c in C], axis=2)
+
+    return img
 
 
 def write_exr(path, img):
     return imageio.imwrite(path, img)
+
 
 def chunks_drop_last(lst, n):
     """Yield successive n-sized chunks from lst."""
@@ -25,9 +39,10 @@ def chunks_drop_last(lst, n):
             return
         yield lst[i:i + n]
 
+
 class RenderedDataset(torch.utils.data.Dataset):
-    def __init__(self, pickle_path, get_img_path, resolution, transform, fake_data,
-                 process_input, start_range, end_range):
+    def __init__(self, pickle_path, get_img_path, resolution, transform,
+                 fake_data, process_input, start_range, end_range):
         if not fake_data:
             with open(pickle_path, "rb") as f:
                 self.data = pickle.load(f)[start_range:end_range]
@@ -40,7 +55,7 @@ class RenderedDataset(torch.utils.data.Dataset):
     def __getitem__(self, index):
         if self.fake_data:
             image = np.zeros((self.resolution, self.resolution, 3))
-            inp = np.ones((1, 20)) # TODO: fix hardcoded size...
+            inp = np.ones((1, 20))  # TODO: fix hardcoded size...
         else:
             image = load_exr(get_img_path(index))
 
@@ -66,6 +81,7 @@ class RenderedDataset(torch.utils.data.Dataset):
         else:
             return len(self.data)
 
+
 class ToTensor(object):
     """Convert ndarrays in sample to Tensors."""
     def __call__(self, sample):
@@ -79,6 +95,7 @@ class ToTensor(object):
             'image': torch.from_numpy(image).float(),
             'inp': torch.from_numpy(inp).float()
         }
+
 
 def mask_collate_fn(samples):
     images = torch.stack([x['image'] for x in samples])
@@ -103,16 +120,15 @@ def mask_collate_fn(samples):
     for i in range(batch_size):
         inp = samples[i]['inp']
         this_seq_size = inp.size(0)
-        zero_pad = torch.zeros(
-            (max_seq_size - this_seq_size, input_size),
-            dtype=dtype,
-            device=device)
+        zero_pad = torch.zeros((max_seq_size - this_seq_size, input_size),
+                               dtype=dtype,
+                               device=device)
         padded_inputs[i] = torch.cat((inp, zero_pad))
 
         ones_mask = torch.ones((this_seq_size, ), dtype=dtype, device=device)
         zeros_mask = torch.zeros((max_seq_size - this_seq_size, ),
-                                dtype=dtype,
-                                device=device)
+                                 dtype=dtype,
+                                 device=device)
         masks[i] = torch.cat((ones_mask, zeros_mask))
         counts[i] = this_seq_size
 
@@ -122,7 +138,6 @@ def mask_collate_fn(samples):
         'mask': masks,
         'count': counts,
     }
-
 
 
 class SubsetRandomDistributedSampler(torch.utils.data.sampler.Sampler):
@@ -135,11 +150,7 @@ class SubsetRandomDistributedSampler(torch.utils.data.sampler.Sampler):
         shuffle (bool): whether or not to random shuffle
         TODO
     """
-    def __init__(self,
-                 subset,
-                 num_replicas=1,
-                 rank=0,
-                 shuffle=True):
+    def __init__(self, subset, num_replicas=1, rank=0, shuffle=True):
         self.subset = subset
         self.shuffle = shuffle
 
