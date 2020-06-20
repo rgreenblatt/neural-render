@@ -1,5 +1,5 @@
 import contextlib
-from contextlib import nullcontext
+from contextlib import suppress
 import datetime
 import os
 import time
@@ -30,7 +30,7 @@ def list_folder(dbx, folder, subfolder, verbose=True):
     path = path.rstrip('/')
     entries = []
     try:
-        context = stopwatch('list_folder') if verbose else nullcontext()
+        context = stopwatch('list_folder') if verbose else suppress()
         with context:
             res = dbx.files_list_folder(path)
             entries.extend(res.entries)
@@ -60,7 +60,7 @@ def upload_file(dbx, fullname, folder, subfolder, name, overwrite=True, verbose=
     with open(fullname, 'rb') as f:
         data = f.read()
     context = stopwatch('upload %d bytes' %
-                        len(data)) if verbose else nullcontext()
+                        len(data)) if verbose else suppress()
     with context:
         try:
             res = dbx.files_upload(
@@ -92,7 +92,7 @@ def download(dbx, path, local_path, verbose=True):
     """
     while '//' in path:
         path = path.replace('//', '/')
-    context = stopwatch('download') if verbose else nullcontext()
+    context = stopwatch('download') if verbose else suppress()
     with context:
         try:
             md, res = dbx.files_download(path)
