@@ -1,4 +1,5 @@
 import contextlib
+from contextlib import nullcontext
 import datetime
 import os
 import time
@@ -18,7 +19,7 @@ def stopwatch(message):
               flush=True)
 
 
-def list_folder(dbx, folder, subfolder):
+def list_folder(dbx, folder, subfolder, verbose=True):
     """List a folder.
     Return a dict mapping unicode filenames to
     FileMetadata|FolderMetadata entries.
@@ -29,7 +30,8 @@ def list_folder(dbx, folder, subfolder):
     path = path.rstrip('/')
     entries = []
     try:
-        with stopwatch('list_folder'):
+        context = stopwatch('list_folder') if verbose else nullcontext()
+        with context:
             res = dbx.files_list_folder(path)
             entries.extend(res.entries)
             has_more = res.has_more
@@ -45,7 +47,7 @@ def list_folder(dbx, folder, subfolder):
         return entries
 
 
-def upload_file(dbx, fullname, folder, subfolder, name, overwrite=True):
+def upload_file(dbx, fullname, folder, subfolder, name, overwrite=True, verbose=True):
     """Upload a file.
     Return the request response, or None in case of error.
     """
@@ -57,7 +59,9 @@ def upload_file(dbx, fullname, folder, subfolder, name, overwrite=True):
     mtime = os.path.getmtime(fullname)
     with open(fullname, 'rb') as f:
         data = f.read()
-    with stopwatch('upload %d bytes' % len(data)):
+    context = stopwatch('upload %d bytes' %
+                        len(data)) if verbose else nullcontext()
+    with context:
         try:
             res = dbx.files_upload(
                 data,
@@ -68,7 +72,8 @@ def upload_file(dbx, fullname, folder, subfolder, name, overwrite=True):
         except dropbox.exceptions.ApiError as err:
             print('*** API error', err)
             return None
-    print('uploaded as', res.name.encode('utf8'))
+    if verbose:
+        print('uploaded as', res.name.encode('utf8'))
     return res
 
 
@@ -81,20 +86,22 @@ def upload_dir(dbx, dirname, remote_dir_name):
             upload_file(dbx, fullname, remote_dir_name, subfolder, name)
 
 
-def download(dbx, path, local_path):
+def download(dbx, path, local_path, verbose=True):
     """Download a file.
     Return the bytes of the file, or None if it doesn't exist.
     """
     while '//' in path:
         path = path.replace('//', '/')
-    with stopwatch('download'):
+    context = stopwatch('download') if verbose else nullcontext()
+    with context:
         try:
             md, res = dbx.files_download(path)
         except dropbox.exceptions.HttpError as err:
             print('*** HTTP error', err)
             return None
     data = res.content
-    print(len(data), 'bytes; md:', md)
+    if verbose:
+        print(len(data), 'bytes; md:', md)
 
     with open(local_path, 'wb') as f:
         f.write(data)
