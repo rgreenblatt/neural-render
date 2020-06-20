@@ -6,7 +6,7 @@ import shutil
 from tqdm import tqdm
 
 from utils import resize, mkdirs
-from load_data import load_exr, write_exr
+from data_utils import load_exr, write_exr
 from constants import pickle_name, data_path, imgs_dir_name, get_img_path
 
 

@@ -15,14 +15,14 @@ from apex.parallel import DistributedDataParallel, convert_syncbn_model
 from apex import amp, optimizers
 import git
 
-from model import Net
-from load_data import load_dataset
 from arch import net_params
-from utils import (mkdirs, LRSched, linear_to_srgb, LossTracker, ImageTracker,
-                   PrintAndLog)
-from criterion import PerceptualLoss
 from config import Config
 from constants import pickle_path, get_img_path
+from criterion import PerceptualLoss
+from load_data import load_dataset
+from model import Net
+from torch_utils import LRSched, linear_to_srgb, LossTracker, ImageTracker
+from utils import mkdirs, PrintAndLog
 
 
 def main():
@@ -48,7 +48,6 @@ def main():
 
         cfg.print_params()
         cfg.print_non_default()
-
 
         writer.add_text("params", cfg.as_markdown())
         writer.add_text("non default params", cfg.non_default_as_markdown())

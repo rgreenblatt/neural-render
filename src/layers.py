@@ -7,7 +7,7 @@ from torch.nn import functional as F
 from torch.nn import Parameter as P
 import numpy as np
 
-from utils import (Swish, MemoryEfficientSwish)
+from torch_utils import Swish, MemoryEfficientSwish
 
 
 # Simple function to handle groupnorm norm stylization
@@ -509,9 +509,6 @@ class MBConvGBlock(nn.Module):
                                           out_channels=oup,
                                           kernel_size=1)
 
-
-
-
         # Pointwise convolution phase
         final_oup = self.cfg.output_ch
         self._project_conv = nn.Conv2d(in_channels=oup,
@@ -566,9 +563,8 @@ class MBConvGBlock(nn.Module):
             x = torch.sigmoid(x_squeezed) * x
         elif self.cfg.attn_excitation:
             attn_map = self._swish(
-                seq_to_width(
-                    self._attn_for_excitation(seq, width_to_seq(x)),
-                    x.size(-1)))
+                seq_to_width(self._attn_for_excitation(seq, width_to_seq(x)),
+                             x.size(-1)))
             expanded_attn = self._attn_expand(attn_map)
             x = torch.sigmoid(expanded_attn) * x
 

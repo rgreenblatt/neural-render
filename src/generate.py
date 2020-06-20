@@ -14,15 +14,12 @@ from scipy.spatial.transform import Rotation as R
 from generate_config import GenerateConfig
 from gen_utils import random_seed
 from constants import pickle_name, get_img_path
+from utils import mkdirs
 
 
 def select_set(obj, value):
     # Only works in blender >= 2.80
     obj.select_set(value)
-
-
-def mkdirs(path):
-    Path(path).mkdir(parents=True, exist_ok=True)
 
 
 def remove_printing(thunk):

@@ -3,7 +3,7 @@ from torch import nn
 
 from layers import (MBConvGBlock, Attention, Transformer, SeqToImageStart,
                     SeqToImage, ImageToSeq, ConfigurableNorm, SeqBlock)
-from utils import Swish, MemoryEfficientSwish, get_position_ch
+from torch_utils import Swish, MemoryEfficientSwish, get_position_ch
 
 
 class Net(nn.Module):
@@ -23,7 +23,6 @@ class Net(nn.Module):
 
         self._input_expand = nn.Linear(self._global_args.input_size,
                                        self._global_args.seq_size)
-
 
         def get_block(constructor, use, *args):
             if use:
@@ -116,7 +115,6 @@ class Net(nn.Module):
 
         for block in self._image_blocks:
             block.reset_running_stats()
-
 
     def forward(self, inputs, masks, counts):
         """

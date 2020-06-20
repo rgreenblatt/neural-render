@@ -12,7 +12,7 @@ from tqdm import tqdm
 from constants import pickle_name, get_img_path, imgs_dir_name
 from dropbox_utils import download, list_folder
 from utils import mkdirs, resize
-from load_data import load_exr, write_exr
+from data_utils import load_exr, write_exr
 
 
 def copy_image(download_dir, overall_index, output_dir, args, i):
