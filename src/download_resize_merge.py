@@ -32,6 +32,9 @@ def main():
     parser.add_argument('api_key')
     parser.add_argument('--resize-to', type=int, default=None)
     parser.add_argument('--show-times', action='store_true')
+    parser.add_argument('--start', type=int, default=0)
+    parser.add_argument('--end', type=int, default=-1)
+    parser.add_argument('--pool-size', type=int, default=1)
     args = parser.parse_args()
 
     dbx = dropbox.Dropbox(args.api_key)
@@ -43,14 +46,21 @@ def main():
     mkdirs(output_dir)
     mkdirs(os.path.join(output_dir, imgs_dir_name))
 
-    files = [data.name for data in list_folder(dbx, "/", "sphere_renders")]
+    files = [(data.server_modified, data.name)
+             for data in list_folder(dbx, "/", "sphere_renders")]
+    files.sort(key=lambda x : x[0])
+    files = files[args.start:args.end]
+    files = [data[1] for data in files]
+
+    print(len(files))
+    return
 
     pickle_path = os.path.join(download_dir, pickle_name)
 
     all_data = []
     overall_index = 0
 
-    p = Pool(16)
+    p = Pool(args.pool_size)
 
     for file in files if args.show_times else tqdm(files):
         shutil.rmtree(download_dir, ignore_errors=True)
