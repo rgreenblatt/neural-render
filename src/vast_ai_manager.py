@@ -120,6 +120,8 @@ def main():
                     print("unexpected instance:", instance['label'],
                           "- taking offline", flush=True)
                     destroy_instance(instance['id'])
+        if cfg.term:
+            return
 
         instance_labels = list(set(actual_labels))
 

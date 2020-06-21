@@ -59,6 +59,7 @@ class VastAIManagerConfig(BaseConfig):
 
         parser.add_argument("api_key")
         parser.add_argument("--max-dl-per-hour", type=float, default=2.0)
+        parser.add_argument("--term", action="store_true")
         parser.add_argument("--min-dlperf_per_total_cost",
                             type=float,
                             default=200.0)
