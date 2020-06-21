@@ -1,4 +1,3 @@
-import os
 import pickle
 
 from generate import basic_setup, DisplayBlenderScene

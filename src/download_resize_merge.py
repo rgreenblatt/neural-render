@@ -35,6 +35,7 @@ def main():
     parser.add_argument('--start', type=int, default=0)
     parser.add_argument('--end', type=int, default=-1)
     parser.add_argument('--pool-size', type=int, default=1)
+    parser.add_argument('--dbx-dir', default="/sphere_renders")
     args = parser.parse_args()
 
     dbx = dropbox.Dropbox(args.api_key)
@@ -47,7 +48,7 @@ def main():
     mkdirs(os.path.join(output_dir, imgs_dir_name))
 
     files = [(data.server_modified, data.name)
-             for data in list_folder(dbx, "/", "sphere_renders")]
+             for data in list_folder(dbx, "/", args.dbx_dir)]
     files.sort(key=lambda x : x[0])
     files = files[args.start:args.end]
     files = [data[1] for data in files]
@@ -66,7 +67,7 @@ def main():
         output_file = "downloads/{}".format(file)
         with stopwatch_if('download', args.show_times):
             download(dbx,
-                     "/sphere_renders/{}".format(file),
+                     "{}/{}".format(args.dbx_dir, file),
                      output_file,
                      verbose=False)
         with stopwatch_if('extract', args.show_times):
