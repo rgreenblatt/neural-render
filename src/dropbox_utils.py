@@ -18,6 +18,7 @@ def stopwatch(message):
         print('Total elapsed time for %s: %.3f' % (message, t1 - t0),
               flush=True)
 
+
 def stopwatch_if(message, use):
     return stopwatch(message) if use else suppress()
 
@@ -65,16 +66,39 @@ def upload_file(dbx,
     mode = (dropbox.files.WriteMode.overwrite
             if overwrite else dropbox.files.WriteMode.add)
     mtime = os.path.getmtime(fullname)
-    with open(fullname, 'rb') as f:
-        data = f.read()
-    with stopwatch_if('upload %d bytes' % len(data), verbose):
+    client_modified = datetime.datetime(*time.gmtime(mtime)[:6])
+
+    file_size = os.path.getsize(fullname)
+
+    with stopwatch_if('upload %d bytes' % file_size, verbose):
         try:
-            res = dbx.files_upload(
-                data,
-                path,
-                mode,
-                client_modified=datetime.datetime(*time.gmtime(mtime)[:6]),
-                mute=True)
+            with open(fullname, 'rb') as f:
+                CHUNK_SIZE = 16 * 1024 * 1024
+
+                if file_size <= CHUNK_SIZE:
+                    data = f.read()
+                    res = dbx.files_upload(data,
+                                           path,
+                                           mode,
+                                           client_modified=client_modified)
+                else:
+                    upload_session_start_result = dbx.files_upload_session_start(
+                        f.read(CHUNK_SIZE))
+                    cursor = dropbox.files.UploadSessionCursor(
+                        session_id=upload_session_start_result.session_id,
+                        offset=f.tell())
+                    commit = dropbox.files.CommitInfo(
+                        path=path, mode=mode, client_modified=client_modified)
+
+                    while f.tell() < file_size:
+                        if ((file_size - f.tell()) <= CHUNK_SIZE):
+                            res = dbx.files_upload_session_finish(
+                                f.read(CHUNK_SIZE), cursor, commit)
+                        else:
+                            dbx.files_upload_session_append(
+                                f.read(CHUNK_SIZE), cursor.session_id,
+                                cursor.offset)
+                            cursor.offset = f.tell()
         except dropbox.exceptions.ApiError as err:
             print('*** API error', err)
             return None
