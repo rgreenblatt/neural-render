@@ -50,6 +50,7 @@ def main():
     files = [(data.server_modified, data.name)
              for data in list_folder(dbx, "/", args.dbx_dir)]
     files.sort(key=lambda x : x[0])
+    print("num files:", len(files))
     files = files[args.start:args.end]
     files = [data[1] for data in files]
 
