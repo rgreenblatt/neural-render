@@ -90,6 +90,7 @@ class Config(argparse.Namespace):
 
         parser.add_argument('--norm-style', default='bn')
         parser.add_argument('--start-ch', type=int, default=256)
+        parser.add_argument('--end-linear-ch', type=int, default=256)
         parser.add_argument('--start-width', type=int, default=4)
         parser.add_argument('--seq-size', type=int, default=512)
         parser.add_argument(
@@ -123,7 +124,7 @@ class Config(argparse.Namespace):
         parser.add_argument('--full-seq-frequency', action='store_true')
         parser.add_argument('--no-position-ch', action='store_true')
         parser.add_argument('--use-se', action='store_true')
-        parser.add_argument('--constant-ch-blocks', type=int, default=2)
+        parser.add_argument('--linear-ch-blocks', type=int, default=2)
 
         parser.add_argument('--ch-coefficient', type=float, default=1.0)
         parser.add_argument('--depth-coefficient',

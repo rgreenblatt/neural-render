@@ -71,6 +71,8 @@ _BlockArgsParams = collections.namedtuple('BlockArgsParams', [
     'transformer_n_layers',
     'image_n_heads',
     'norm_style',
+    'round_by',
+    'show_info',
     'use_seq_to_image',
     'use_image_to_seq',
     'use_seq_block',
@@ -80,6 +82,7 @@ _BlockArgsParams = collections.namedtuple('BlockArgsParams', [
     'full_seq_frequency',
     'alternate_seq_block',
     'attn_excitation',
+    'continuously_vary_ch',
 ])
 
 
@@ -89,12 +92,19 @@ class BlockArgs(_BlockArgsParams):
         if not hasattr(self, 'block_num'):
             self.block_num = 0
             self.output_ch_this_block = self.input_ch
+            if self.continuously_vary_ch:
+                self.ch_per_block = (self.output_ch -
+                                     self.input_ch) / self.num_repeat
+            else:
+                self.ch_per_block = 0.0
 
         is_first_block = self.block_num == 0
         is_last_block = self.block_num == self.num_repeat - 1
 
         self.upsample_this_block = is_last_block
         self.input_ch_this_block = self.output_ch_this_block
+        self.output_ch_this_block = (self.input_ch_this_block +
+                                     self.ch_per_block)
         if is_last_block:
             self.output_ch_this_block = self.output_ch
 
@@ -111,14 +121,21 @@ class BlockArgs(_BlockArgsParams):
                                             and (is_last_block
                                                  or self.full_seq_frequency))
 
-        # def round_valid(value):
-        #     return math.ceil(round(value) / self.round_by) * self.round_by
+        def round_valid(value):
+            return math.ceil(round(value) / self.round_by) * self.round_by
 
-        self.input_ch_conv = self.input_ch_this_block
-        self.output_ch_conv = self.output_ch_this_block
+        self.input_ch_conv = round_valid(self.input_ch_this_block)
+        self.output_ch_conv = round_valid(self.output_ch_this_block)
 
         if self.use_seq_to_image_this_block and not self.add_seq_to_image:
             self.output_ch_conv -= round(self.attn_ch)
+
+        if self.show_info:
+            print("block num:", self.block_num)
+            print("input conv at n:", self.input_ch_conv)
+            print("output conv at n:", self.output_ch_conv)
+            print("output overall at n:", self.output_ch_this_block)
+            print("output at end of blocks:", self.output_ch)
 
         self.block_num += 1
 
@@ -166,6 +183,8 @@ def net_params(input_size, output_width, cfg):
     num_upsamples = get_num_upsamples(output_width)
     nonlocal_index = get_num_upsamples(cfg.nonlocal_width)
 
+    ch_per_linear = (cfg.end_linear_ch - cfg.start_ch) / cfg.linear_ch_blocks
+
     # right now, ch_coefficient only effects start_ch, so it is effectively
     # not needed.
     start_ch = cfg.start_ch * cfg.ch_coefficient
@@ -182,7 +201,8 @@ def net_params(input_size, output_width, cfg):
 
     # TODO: tuning
     for i in range(num_upsamples):
-        if i < cfg.constant_ch_blocks:
+        is_linear = i < cfg.linear_ch_blocks
+        if is_linear:
             output_ch = input_ch
         else:
             output_ch = input_ch / 2
@@ -215,6 +235,8 @@ def net_params(input_size, output_width, cfg):
                 transformer_n_layers=cfg.seq_transformer_n_layers,
                 image_n_heads=2,  # TODO: test making fixed per...
                 norm_style=cfg.norm_style,
+                round_by=8,
+                show_info=cfg.show_model_info,
                 use_seq_to_image=not cfg.no_seq_to_image,
                 use_image_to_seq=not cfg.no_image_to_seq,
                 use_seq_block=cfg.use_seq_blocks,
@@ -224,6 +246,7 @@ def net_params(input_size, output_width, cfg):
                 full_seq_frequency=cfg.full_seq_frequency,
                 alternate_seq_block=cfg.alternate_seq_block,
                 attn_excitation=cfg.attn_excitation,
+                continuously_vary_ch=is_linear,
             ))
         input_ch = output_ch
 
