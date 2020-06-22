@@ -30,7 +30,9 @@ def get_offers(storage, *args):
 
 
 def get_total_cost(offer, storage):
-    return offer['min_bid'] + offer['storage_total_cost']
+    # STORAGE TOTAL COST DOESN'T WORK
+    storage_cost_per_hour = offer['storage_cost'] / (30 * 24)
+    return offer['min_bid'] + storage_cost_per_hour * storage
 
 
 def sort_filter_offers(offers, cfg):
