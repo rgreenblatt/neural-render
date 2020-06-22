@@ -23,10 +23,16 @@ def chunks_drop_last(lst, n):
 
 class RenderedDataset(torch.utils.data.Dataset):
     def __init__(self, pickle_path, get_img_path, resolution, transform,
-                 fake_data, process_input, start_range, end_range):
+                 fake_data, process_input, start_range, end_range,
+                 min_seq_len, max_seq_len):
         if not fake_data:
             with open(pickle_path, "rb") as f:
                 self.data = pickle.load(f)[start_range:end_range]
+                def valid_item(x):
+                    min_v = min_seq_len is None or x.shape[0] >= min_seq_len
+                    max_v = max_seq_len is None or x.shape[0] <= max_seq_len
+                    return min_v and max_v
+                self.data = list(filter(valid_item, self.data))
         self.get_img_path = get_img_path
         self.transform = transform
         self.resolution = resolution
@@ -182,6 +188,8 @@ def load_dataset(pickle_path,
                  process_input=lambda x: x,
                  start_range=0,
                  end_range=-1,
+                 min_seq_len=None,
+                 max_seq_len=None,
                  num_replicas=1,
                  rank=0):
     dataset = RenderedDataset(pickle_path,
@@ -191,7 +199,9 @@ def load_dataset(pickle_path,
                               fake_data=fake_data,
                               process_input=process_input,
                               start_range=start_range,
-                              end_range=end_range)
+                              end_range=end_range,
+                              min_seq_len=min_seq_len,
+                              max_seq_len=max_seq_len)
 
     # we load in chunks to ensure each batch has consistant size
     # the dataset must have a consistant size per each group of batch_size

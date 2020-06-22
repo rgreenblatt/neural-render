@@ -62,6 +62,8 @@ class Config(argparse.Namespace):
         parser.add_argument('--epochs', type=int, default=200)
         parser.add_argument('--resolution', type=int, default=128)
         parser.add_argument('--valid-split-seed', type=int, default=0)
+        parser.add_argument('--min-seq-len', type=int, default=None)
+        parser.add_argument('--max-seq-len', type=int, default=None)
         parser.add_argument('--amp-verbosity', type=int, default=0)
         parser.add_argument('--train-images-to-save',
                                  type=int,

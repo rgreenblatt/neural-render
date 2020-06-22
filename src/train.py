@@ -128,22 +128,6 @@ def main():
 
         return np.concatenate((inp, mat_arr, rot_vec_arr, cube_points), axis=1)
 
-    def get_dataset(start_range, end_range):
-        return load_dataset(pickle_path,
-                            get_img_path,
-                            img_width,
-                            batch_size,
-                            valid_prop,
-                            cfg.valid_split_seed,
-                            True,
-                            num_workers=8,
-                            fake_data=cfg.fake_data,
-                            process_input=process_input,
-                            start_range=start_range,
-                            end_range=end_range,
-                            num_replicas=world_size,
-                            rank=cfg.local_rank)
-
     input_size = 56  # 20, then 56 after process_input
 
     blocks_args, global_args = net_params(input_size, img_width, cfg)
@@ -225,6 +209,24 @@ def main():
 
     initial_range_start = 0
     initial_range_end = -1
+
+    def get_dataset(start_range, end_range):
+        return load_dataset(pickle_path,
+                            get_img_path,
+                            img_width,
+                            batch_size,
+                            valid_prop,
+                            cfg.valid_split_seed,
+                            True,
+                            num_workers=8,
+                            fake_data=cfg.fake_data,
+                            process_input=process_input,
+                            start_range=start_range,
+                            end_range=end_range,
+                            min_seq_len=cfg.min_seq_len,
+                            max_seq_len=cfg.max_seq_len,
+                            num_replicas=world_size,
+                            rank=cfg.local_rank)
 
     train, test, epoch_callback = get_dataset(initial_range_start,
                                               initial_range_end)
