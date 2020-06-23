@@ -189,8 +189,8 @@ def basic_setup(use_gpu):
     camera.rotation_euler[2] = 0.0
 
     # make background dark
-    bpy.data.worlds["World"].node_tree.nodes["Background"].inputs[
-        0].default_value = (0, 0, 0, 1)
+    # bpy.data.worlds["World"].node_tree.nodes["Background"].inputs[
+    #     0].default_value = (0, 0, 0, 1)
 
     # sometimes required to "refresh" devices (doesn't need to be printed)
     print("devices are:",
@@ -198,7 +198,7 @@ def basic_setup(use_gpu):
 
     bpy.context.scene.render.image_settings.file_format = 'OPEN_EXR'
     bpy.context.scene.render.image_settings.exr_codec = 'PIZ'
-    bpy.context.scene.render.engine = 'CYCLES'
+    # bpy.context.scene.render.engine = 'CYCLES'
 
     if use_gpu:
         bpy.context.scene.cycles.device = 'GPU'
@@ -241,8 +241,8 @@ def main(in_blender_mode=False):
 
         if 'Cube' in bpy.data.objects:
             select_set(bpy.data.objects['Cube'], True)
-        if 'Light' in bpy.data.objects:
-            select_set(bpy.data.objects['Light'], True)
+        # if 'Light' in bpy.data.objects:
+        #     select_set(bpy.data.objects['Light'], True)
 
         remove_printing(lambda: bpy.ops.object.delete())
 
