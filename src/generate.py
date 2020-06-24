@@ -44,8 +44,10 @@ def render_image(path):
 
 
 def random_location():
-    base_loc = np.array([0.0, 15.0, 0.0])
-    translate = np.random.uniform(low=-12.0, high=10.0, size=[3])
+    # base_loc = np.array([0.0, 15.0, 0.0])
+    # translate = np.random.uniform(low=-12.0, high=10.0, size=[3])
+    base_loc = np.array([0.0, 0.0, 0.0])
+    translate = np.random.uniform(low=-2.0, high=2.0, size=[3])
 
     return base_loc + translate
 
@@ -58,10 +60,11 @@ def random_rotation(scale=1.0):
 
 
 def random_scale(location):
-    base_scale = np.exp(np.random.normal(loc=-3.0)) * location[1]
-    components_scale = np.random.uniform(low=0.5, high=1.5, size=[3])
+    # base_scale = np.exp(np.random.normal(loc=-3.0)) * location[1]
+    # components_scale = np.random.uniform(low=0.5, high=1.5, size=[3])
 
-    return base_scale * components_scale
+    # return base_scale * components_scale
+    return np.random.uniform(low=0.5, high=1.5, size=[3])
 
 
 def random_material():
@@ -181,16 +184,16 @@ class DisplayBlenderScene():
 
 
 def basic_setup(use_gpu):
-    camera = bpy.data.objects["Camera"]
-    camera.location = mathutils.Vector((0.0, 0.0, 0.0))
-    camera.scale = mathutils.Vector((1.0, 1.0, 1.0))
-    camera.rotation_euler[0] = math.pi / 2
-    camera.rotation_euler[1] = 0.0
-    camera.rotation_euler[2] = 0.0
+    # camera = bpy.data.objects["Camera"]
+    # camera.location = mathutils.Vector((0.0, 0.0, 0.0))
+    # camera.scale = mathutils.Vector((1.0, 1.0, 1.0))
+    # camera.rotation_euler[0] = math.pi / 2
+    # camera.rotation_euler[1] = 0.0
+    # camera.rotation_euler[2] = 0.0
 
     # make background dark
-    # bpy.data.worlds["World"].node_tree.nodes["Background"].inputs[
-    #     0].default_value = (0, 0, 0, 1)
+    bpy.data.worlds["World"].node_tree.nodes["Background"].inputs[
+        0].default_value = (0, 0, 0, 1)
 
     # sometimes required to "refresh" devices (doesn't need to be printed)
     print("devices are:",
@@ -199,6 +202,7 @@ def basic_setup(use_gpu):
     bpy.context.scene.render.image_settings.file_format = 'OPEN_EXR'
     bpy.context.scene.render.image_settings.exr_codec = 'PIZ'
     # bpy.context.scene.render.engine = 'CYCLES'
+    bpy.context.scene.render.engine = 'BLENDER_EEVEE'
 
     if use_gpu:
         bpy.context.scene.cycles.device = 'GPU'
@@ -254,7 +258,7 @@ def main(in_blender_mode=False):
     blender_seed = random_seed()
 
     for i in tqdm(range(count)):
-        object_count = np.random.randint(1, 100)
+        object_count = np.random.randint(1, 10)
 
         bpy.context.scene.cycles.seed = blender_seed
         blender_seed += 1
