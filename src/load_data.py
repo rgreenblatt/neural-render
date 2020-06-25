@@ -10,7 +10,6 @@ import itertools
 
 from utils import resize
 from data_utils import load_exr
-# from constants import 
 
 
 def chunks_drop_last(lst, n):
@@ -27,31 +26,36 @@ class RenderedDataset(torch.utils.data.Dataset):
                  min_seq_len, max_seq_len):
         if not fake_data:
             with open(pickle_path, "rb") as f:
-                self.data = pickle.load(f)[start_range:end_range]
-                def valid_item(x):
+                self.data = list(enumerate(
+                    pickle.load(f)))[start_range:end_range]
+
+                def valid_item(i_x):
+                    x = i_x[1]
                     min_v = min_seq_len is None or x.shape[0] >= min_seq_len
                     max_v = max_seq_len is None or x.shape[0] <= max_seq_len
+
                     return min_v and max_v
+
                 self.data = list(filter(valid_item, self.data))
+
         self.get_img_path = get_img_path
         self.transform = transform
         self.resolution = resolution
         self.fake_data = fake_data
         self.process_input = process_input
 
-    def __getitem__(self, index):
+    def __getitem__(self, data_index):
         if self.fake_data:
             image = np.zeros((self.resolution, self.resolution, 3))
             inp = np.ones((1, 20))  # TODO: fix hardcoded size...
         else:
+            index, inp = self.data[data_index]
             image = load_exr(self.get_img_path(index))
 
             assert image.shape[0] == image.shape[1], "must be square"
 
             if image.shape[0] != self.resolution:
                 image = resize(image, self.resolution)
-
-            inp = self.data[index]
 
         inp = self.process_input(inp)
 
