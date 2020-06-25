@@ -50,8 +50,6 @@ class RenderedDataset(torch.utils.data.Dataset):
             inp = np.ones((1, 20))  # TODO: fix hardcoded size...
         else:
             index, inp = self.data[data_index]
-            print("loading:", data_index)
-            print("with true index:", index)
             image = load_exr(self.get_img_path(index))
 
             assert image.shape[0] == image.shape[1], "must be square"
