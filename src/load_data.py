@@ -26,8 +26,7 @@ class RenderedDataset(torch.utils.data.Dataset):
                  min_seq_len, max_seq_len):
         if not fake_data:
             with open(pickle_path, "rb") as f:
-                self.data = list(enumerate(
-                    pickle.load(f)))[start_range:end_range]
+                self.data = enumerate(pickle.load(f))
 
                 def valid_item(i_x):
                     x = i_x[1]
@@ -37,6 +36,7 @@ class RenderedDataset(torch.utils.data.Dataset):
                     return min_v and max_v
 
                 self.data = list(filter(valid_item, self.data))
+                self.data = self.data[start_range:end_range]
 
         self.get_img_path = get_img_path
         self.transform = transform
@@ -50,6 +50,8 @@ class RenderedDataset(torch.utils.data.Dataset):
             inp = np.ones((1, 20))  # TODO: fix hardcoded size...
         else:
             index, inp = self.data[data_index]
+            print("loading:", data_index)
+            print("with true index:", index)
             image = load_exr(self.get_img_path(index))
 
             assert image.shape[0] == image.shape[1], "must be square"
