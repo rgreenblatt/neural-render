@@ -248,8 +248,9 @@ def main():
                 train, test, epoch_callback, _ = get_dataset(None)
                 if not disable_all_output:
                     print(
-                        "at epoch {}, training on all seq lens with train size {}"
-                        .format(epoch, len(train)))
+                        "at epoch {}, all seq lens with train size {}".format(
+                            epoch,
+                            len(train) * world_batch_size))
                 lr_schedule = LRSched(scaled_lr,
                                       cfg.epochs - epoch,
                                       offset=epoch)
@@ -258,7 +259,8 @@ def main():
                 if not disable_all_output:
                     print(
                         "at epoch {}, setting max seq len to {}, train size {}"
-                        .format(epoch, max_seq_len, len(train)))
+                        .format(epoch, max_seq_len,
+                                len(train) * world_batch_size))
                 lr_schedule = LRSched(scaled_lr * 0.5,
                                       cfg.seq_doubling_time,
                                       pct_start=1.0,
