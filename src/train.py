@@ -207,7 +207,7 @@ def main():
     train_batches_save = math.ceil(cfg.train_images_to_save / batch_size)
     test_batches_save = math.ceil(cfg.test_images_to_save / batch_size)
 
-    def get_dataset(max_seq_len):
+    def get_dataset(max_seq_len, min_prop_emissive):
         return load_dataset(pickle_path,
                             get_img_path,
                             img_width,
@@ -220,15 +220,22 @@ def main():
                             process_input=process_input,
                             data_count_limit=cfg.data_count_limit,
                             max_seq_len=max_seq_len,
+                            min_prop_emissive=min_prop_emissive,
                             num_replicas=world_size,
                             rank=cfg.local_rank)
 
-    max_seq_len = cfg.max_seq_len
-    increase_seq = cfg.start_max_seq_len is not None
-    if increase_seq:
+    max_seq_len = None
+    min_prop_emissive = None
+    increase_max_seq_len = cfg.start_max_seq_len is not None
+    decrease_min_prop_emissive = cfg.start_min_prop_emissive is not None
+    change_factors = increase_max_seq_len or decrease_min_prop_emissive
+    if increase_max_seq_len:
         max_seq_len = cfg.start_max_seq_len
+    if increase_max_seq_len:
+        min_prop_emissive = cfg.start_min_prop_emissive
 
-    train, test, epoch_callback, dataset = get_dataset(max_seq_len)
+    train, test, epoch_callback, dataset = get_dataset(max_seq_len,
+                                                       min_prop_emissive)
 
     if not disable_all_output:
         print("overall max seq len:", dataset.overall_max_seq_len)
@@ -244,32 +251,38 @@ def main():
         print()
 
     for epoch in range(cfg.epochs):
-        if increase_seq and (epoch % cfg.seq_increase_freq) == 0:
+        if change_factors and (epoch % cfg.change_factors_freq) == 0:
             if epoch != 0:
-                max_seq_len *= 2
-            if max_seq_len > dataset.overall_max_seq_len:
-                train, test, epoch_callback, _ = get_dataset(None)
-                if not disable_all_output:
-                    print(
-                        "at epoch {}, all seq lens with train size {}".format(
-                            epoch,
-                            len(train) * world_batch_size))
+                if max_seq_len is not None:
+                    max_seq_len *= 2
+                    if max_seq_len > dataset.overall_max_seq_len:
+                        max_seq_len = None
+                if min_prop_emissive is not None:
+                    min_prop_emissive -= cfg.min_prop_emissive_change_rate
+                    if min_prop_emissive <= 0.0:
+                        min_prop_emissive = None
+
+            if max_seq_len is None and min_prop_emissive is None:
+                # main lr schedule
                 lr_schedule = LRSched(scaled_lr,
                                       cfg.epochs - epoch,
                                       offset=epoch)
-                increase_seq = False
+                change_factors = False
             else:
-                train, test, epoch_callback, _ = get_dataset(max_seq_len)
-                if not disable_all_output:
-                    print(
-                        "at epoch {}, setting max seq len to {}, train size {}"
-                        .format(epoch, max_seq_len,
-                                len(train) * world_batch_size))
+                # change_factors lr schedule
                 lr_schedule = LRSched(scaled_lr,
-                                      cfg.seq_increase_freq,
+                                      cfg.change_factors_freq,
                                       start_div_factor=8.0,
                                       pct_start=1.0,
                                       offset=epoch)
+
+            train, test, epoch_callback, dataset = get_dataset(
+                max_seq_len, min_prop_emissive)
+            if not disable_all_output:
+                print("max seq len {}, min prop emissive {}, train size {}".
+                      format(max_seq_len, min_prop_emissive,
+                             len(train) * world_batch_size))
+                increase_seq = False
 
         epoch_callback(epoch)
 

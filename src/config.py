@@ -62,17 +62,18 @@ class Config(argparse.Namespace):
         parser.add_argument('--epochs', type=int, default=200)
         parser.add_argument('--resolution', type=int, default=128)
         parser.add_argument('--valid-split-seed', type=int, default=0)
-        parser.add_argument('--max-seq-len', type=int, default=None)
         parser.add_argument('--start-max-seq-len', type=int, default=None)
-        parser.add_argument('--seq-increase-freq', type=int, default=2)
+        parser.add_argument('--start-min-prop-emissive',
+                            type=float,
+                            default=None)
+        parser.add_argument('--min-prop-emissive-change-rate',
+                            type=float,
+                            default=0.2)
+        parser.add_argument('--change-factors-freq', type=int, default=2)
         parser.add_argument('--data-count-limit', type=int, default=None)
         parser.add_argument('--amp-verbosity', type=int, default=0)
-        parser.add_argument('--train-images-to-save',
-                                 type=int,
-                                 default=64)
-        parser.add_argument('--test-images-to-save',
-                                 type=int,
-                                 default=256)
+        parser.add_argument('--train-images-to-save', type=int, default=64)
+        parser.add_argument('--test-images-to-save', type=int, default=256)
         parser.add_argument('--save-model-every', type=int, default=5)
         parser.add_argument(
             '--display-freq',
