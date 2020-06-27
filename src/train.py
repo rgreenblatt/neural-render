@@ -207,10 +207,7 @@ def main():
     train_batches_save = math.ceil(cfg.train_images_to_save / batch_size)
     test_batches_save = math.ceil(cfg.test_images_to_save / batch_size)
 
-    initial_range_start = 0
-    initial_range_end = -1
-
-    def get_dataset(start_range, end_range):
+    def get_dataset(max_seq_len):
         return load_dataset(pickle_path,
                             get_img_path,
                             img_width,
@@ -221,15 +218,16 @@ def main():
                             num_workers=8,
                             fake_data=cfg.fake_data,
                             process_input=process_input,
-                            start_range=start_range,
-                            end_range=end_range,
-                            min_seq_len=cfg.min_seq_len,
-                            max_seq_len=cfg.max_seq_len,
+                            data_count_limit=cfg.data_count_limit,
+                            max_seq_len=max_seq_len,
                             num_replicas=world_size,
                             rank=cfg.local_rank)
 
-    train, test, epoch_callback = get_dataset(initial_range_start,
-                                              initial_range_end)
+    max_seq_len = (cfg.start_max_seq_len
+                         if cfg.start_max_seq_len is not None else
+                         cfg.max_seq_len)
+
+    train, test, epoch_callback = get_dataset(max_seq_len)
 
     step = 0
 
@@ -239,6 +237,13 @@ def main():
         print()
 
     for epoch in range(cfg.epochs):
+        if (cfg.start_max_seq_len is not None and epoch != 0
+                and epoch % cfg.seq_doubling_time == 0):
+            max_seq_len *= 2
+            print("at epoch {}, increasing max seq len to {}".format(
+                epoch, max_seq_len))
+            train, test, epoch_callback = get_dataset(max_seq_len)
+
         epoch_callback(epoch)
 
         net.train()

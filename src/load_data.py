@@ -22,21 +22,18 @@ def chunks_drop_last(lst, n):
 
 class RenderedDataset(torch.utils.data.Dataset):
     def __init__(self, pickle_path, get_img_path, resolution, transform,
-                 fake_data, process_input, start_range, end_range,
-                 min_seq_len, max_seq_len):
+                 fake_data, process_input, data_count_limit, max_seq_len):
         if not fake_data:
             with open(pickle_path, "rb") as f:
                 self.data = enumerate(pickle.load(f))
 
                 def valid_item(i_x):
                     x = i_x[1]
-                    min_v = min_seq_len is None or x.shape[0] >= min_seq_len
-                    max_v = max_seq_len is None or x.shape[0] <= max_seq_len
-
-                    return min_v and max_v
+                    return max_seq_len is None or x.shape[0] <= max_seq_len
 
                 self.data = list(filter(valid_item, self.data))
-                self.data = self.data[start_range:end_range]
+                if data_count_limit is not None:
+                    self.data = self.data[:data_count_limit]
 
         self.get_img_path = get_img_path
         self.transform = transform
@@ -190,9 +187,7 @@ def load_dataset(pickle_path,
                  num_workers=0,
                  fake_data=False,
                  process_input=lambda x: x,
-                 start_range=0,
-                 end_range=-1,
-                 min_seq_len=None,
+                 data_count_limit=None,
                  max_seq_len=None,
                  num_replicas=1,
                  rank=0):
@@ -202,9 +197,7 @@ def load_dataset(pickle_path,
                               transform=ToTensor(),
                               fake_data=fake_data,
                               process_input=process_input,
-                              start_range=start_range,
-                              end_range=end_range,
-                              min_seq_len=min_seq_len,
+                              data_count_limit=data_count_limit,
                               max_seq_len=max_seq_len)
 
     # we load in chunks to ensure each batch has consistant size
