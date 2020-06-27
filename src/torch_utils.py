@@ -152,7 +152,8 @@ class LRSched():
                  epochs,
                  start_div_factor=4.0,
                  pct_start=0.1,
-                 final_div_factor=None):
+                 final_div_factor=None,
+                 offset=0):
         start_lr = lr_max / start_div_factor
         if final_div_factor is None:
             final_lr = 0.0
@@ -164,8 +165,10 @@ class LRSched():
                                             (self.decay_start_epoch, lr_max)])
         self.cos_part = CosineDecay(self.decay_start_epoch, lr_max, epochs,
                                     final_lr)
+        self.offset = offset
 
     def __call__(self, epoch):
+        epoch = epoch - self.offset
         if epoch <= self.decay_start_epoch:
             return self.linear_part(epoch)
         else:

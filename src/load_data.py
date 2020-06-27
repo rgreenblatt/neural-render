@@ -27,6 +27,8 @@ class RenderedDataset(torch.utils.data.Dataset):
             with open(pickle_path, "rb") as f:
                 self.data = enumerate(pickle.load(f))
 
+                self.max_seq_len = max(map(lambda x: x[0].shape[0], self.data))
+
                 def valid_item(i_x):
                     x = i_x[1]
                     return max_seq_len is None or x.shape[0] <= max_seq_len
@@ -34,6 +36,8 @@ class RenderedDataset(torch.utils.data.Dataset):
                 self.data = list(filter(valid_item, self.data))
                 if data_count_limit is not None:
                     self.data = self.data[:data_count_limit]
+        else:
+            self.max_seq_len = 1
 
         self.get_img_path = get_img_path
         self.transform = transform
@@ -239,4 +243,4 @@ def load_dataset(pickle_path,
         train_sampler.set_epoch(epoch)
         val_sampler.set_epoch(epoch)  # not really required
 
-    return train_loader, val_loader, epoch_callback
+    return train_loader, val_loader, epoch_callback, dataset.max_seq_len

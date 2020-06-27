@@ -223,11 +223,14 @@ def main():
                             num_replicas=world_size,
                             rank=cfg.local_rank)
 
-    max_seq_len = (cfg.start_max_seq_len
-                         if cfg.start_max_seq_len is not None else
-                         cfg.max_seq_len)
+    max_seq_len = cfg.max_seq_len
+    if cfg.start_max_seq_len is not None:
+        max_seq_len = cfg.start_max_seq_len
 
-    train, test, epoch_callback = get_dataset(max_seq_len)
+    train, test, epoch_callback, overall_max_seq_len = get_dataset(max_seq_len)
+
+    if not disable_all_output:
+        print("overall max seq len:", overall_max_seq_len)
 
     step = 0
 
@@ -237,12 +240,27 @@ def main():
         print()
 
     for epoch in range(cfg.epochs):
-        if (cfg.start_max_seq_len is not None and epoch != 0
+        if (cfg.start_max_seq_len is not None
                 and epoch % cfg.seq_doubling_time == 0):
-            max_seq_len *= 2
-            print("at epoch {}, increasing max seq len to {}".format(
-                epoch, max_seq_len))
-            train, test, epoch_callback = get_dataset(max_seq_len)
+            if epoch != 0:
+                max_seq_len *= 2
+            if max_seq_len > overall_max_seq_len:
+                if not disable_all_output:
+                    print(
+                        "at epoch {}, training on all seq lens".format(epoch))
+                train, test, epoch_callback, _ = get_dataset(None)
+                lr_schedule = LRSched(scaled_lr,
+                                      cfg.seq_doubling_time,
+                                      pct_start=1.0,
+                                      offset=epoch)
+            else:
+                if not disable_all_output:
+                    print("at epoch {}, setting max seq len to {}".format(
+                        epoch, max_seq_len))
+                train, test, epoch_callback, _ = get_dataset(max_seq_len)
+                lr_schedule = LRSched(scaled_lr,
+                                      cfg.epochs - epoch,
+                                      offset=epoch)
 
         epoch_callback(epoch)
 
