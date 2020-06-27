@@ -78,12 +78,12 @@ def random_material():
 
     transmission = 1 - np.random.uniform()**4
 
-    prob_emmisive = 0.7
+    prob_emisive = 0.7
 
-    is_emmisive = np.random.uniform() < prob_emmisive
+    is_emisive = np.random.uniform() < prob_emisive
 
     emission = np.exp(np.random.normal(
-        size=[3])) if is_emmisive else np.zeros(3)
+        size=[3])) if is_emisive else np.zeros(3)
 
     return np.concatenate(
         (color, [metallic], [specular], [roughness], [transmission], emission))
@@ -152,7 +152,7 @@ class DisplayBlenderScene():
         # specular: 5
         # roughness: 7
         # transmission 15
-        # emmision 17
+        # emision 17
 
         color = material_params[:3]
         metallic = material_params[3]
