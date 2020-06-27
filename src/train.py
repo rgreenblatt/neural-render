@@ -245,21 +245,23 @@ def main():
             if epoch != 0:
                 max_seq_len *= 2
             if max_seq_len > overall_max_seq_len:
+                train, test, epoch_callback, _ = get_dataset(None)
                 if not disable_all_output:
                     print(
-                        "at epoch {}, training on all seq lens".format(epoch))
-                train, test, epoch_callback, _ = get_dataset(None)
-                lr_schedule = LRSched(scaled_lr,
-                                      cfg.seq_doubling_time,
-                                      pct_start=1.0,
-                                      offset=epoch)
-            else:
-                if not disable_all_output:
-                    print("at epoch {}, setting max seq len to {}".format(
-                        epoch, max_seq_len))
-                train, test, epoch_callback, _ = get_dataset(max_seq_len)
+                        "at epoch {}, training on all seq lens with train size {}"
+                        .format(epoch, len(train)))
                 lr_schedule = LRSched(scaled_lr,
                                       cfg.epochs - epoch,
+                                      offset=epoch)
+            else:
+                train, test, epoch_callback, _ = get_dataset(max_seq_len)
+                if not disable_all_output:
+                    print(
+                        "at epoch {}, setting max seq len to {}, train size {}"
+                        .format(epoch, max_seq_len, len(train)))
+                lr_schedule = LRSched(scaled_lr * 0.5,
+                                      cfg.seq_doubling_time,
+                                      pct_start=1.0,
                                       offset=epoch)
 
         epoch_callback(epoch)

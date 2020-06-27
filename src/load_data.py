@@ -25,15 +25,14 @@ class RenderedDataset(torch.utils.data.Dataset):
                  fake_data, process_input, data_count_limit, max_seq_len):
         if not fake_data:
             with open(pickle_path, "rb") as f:
-                self.data = enumerate(pickle.load(f))
-
-                self.max_seq_len = max(map(lambda x: x[0].shape[0], self.data))
+                data_file = pickle.load(f)
+                self.max_seq_len = max(map(lambda x: x.shape[0], data_file))
 
                 def valid_item(i_x):
                     x = i_x[1]
                     return max_seq_len is None or x.shape[0] <= max_seq_len
 
-                self.data = list(filter(valid_item, self.data))
+                self.data = list(filter(valid_item, enumerate(data_file)))
                 if data_count_limit is not None:
                     self.data = self.data[:data_count_limit]
         else:

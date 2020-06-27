@@ -163,8 +163,9 @@ class LRSched():
 
         self.linear_part = PiecewiseLinear([(0, start_lr),
                                             (self.decay_start_epoch, lr_max)])
-        self.cos_part = CosineDecay(self.decay_start_epoch, lr_max, epochs,
-                                    final_lr)
+        if epochs - self.decay_start_epoch > 0:
+            self.cos_part = CosineDecay(self.decay_start_epoch, lr_max, epochs,
+                                        final_lr)
         self.offset = offset
 
     def __call__(self, epoch):
