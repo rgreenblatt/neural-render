@@ -78,7 +78,7 @@ def random_material():
 
     transmission = 1 - np.random.uniform()**4
 
-    prob_emmisive = 0.2
+    prob_emmisive = 0.7
 
     is_emmisive = np.random.uniform() < prob_emmisive
 
@@ -254,7 +254,7 @@ def main(in_blender_mode=False):
     blender_seed = random_seed()
 
     for i in tqdm(range(count)):
-        object_count = np.random.randint(1, 100)
+        object_count = np.random.randint(1, 20)
 
         bpy.context.scene.cycles.seed = blender_seed
         blender_seed += 1

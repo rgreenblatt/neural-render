@@ -58,6 +58,7 @@ class VastAIManagerConfig(BaseConfig):
         parser = self.build_base_parser()
 
         parser.add_argument("api_key")
+        parser.add_argument("--app-dir", default="sphere_renders")
         parser.add_argument("--max-dl-per-hour", type=float, default=2.0)
         parser.add_argument("--term", action="store_true")
         parser.add_argument("--min-dlperf_per_total_cost",

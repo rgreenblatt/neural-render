@@ -90,8 +90,8 @@ def create_instance(id_i, bid, label, base_seed, cfg):
         str(cfg.storage), '--image', cfg.image, '--label', label,
         '--onstart-cmd', 'cd ~/neural-render && sleep 5 && git pull && ' +
         'nohup python3 src/generate_upload.py ' +
-        '{} --base-seed {} {}'.format(
-            cfg.api_key, base_seed,
+        '{} --base-seed {} --app-dir {} {}'.format(
+            cfg.api_key, base_seed, cfg.app_dir,
             cfg.base_as_arg_string() + ' &> ~/render.log &')
     ]
 
