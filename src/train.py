@@ -253,6 +253,7 @@ def main():
                             len(train) * world_batch_size))
                 lr_schedule = LRSched(scaled_lr,
                                       cfg.epochs - epoch,
+                                      start_div_factor=16.0,
                                       offset=epoch)
             else:
                 train, test, epoch_callback, _ = get_dataset(max_seq_len)
@@ -263,6 +264,7 @@ def main():
                                 len(train) * world_batch_size))
                 lr_schedule = LRSched(scaled_lr * 0.5,
                                       cfg.seq_doubling_time,
+                                      start_div_factor=2.0,
                                       pct_start=1.0,
                                       offset=epoch)
 
