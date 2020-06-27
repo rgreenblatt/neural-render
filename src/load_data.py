@@ -22,21 +22,44 @@ def chunks_drop_last(lst, n):
 
 class RenderedDataset(torch.utils.data.Dataset):
     def __init__(self, pickle_path, get_img_path, resolution, transform,
-                 fake_data, process_input, data_count_limit, max_seq_len):
+                 fake_data, process_input, data_count_limit, max_seq_len,
+                 min_prop_emissive):
         if not fake_data:
             with open(pickle_path, "rb") as f:
                 data_file = pickle.load(f)
-                self.max_seq_len = max(map(lambda x: x.shape[0], data_file))
+                self.overall_max_seq_len = max(map(lambda x: x.shape[0], data_file))
+
+                def get_prop_emissive(x):
+                    count_emissive = sum(
+                        map(lambda x: 1 if (x[17:] > 0).all() else 0, x))
+
+                    return count_emissive / x.shape[0]
+
+                emissive_props = list(map(get_prop_emissive, data_file))
+                self.max_prop_emissive = max(emissive_props)
+                self.min_prop_emissive = min(emissive_props)
+                self.avg_prop_emissive = np.mean(emissive_props)
+
 
                 def valid_item(i_x):
                     x = i_x[1]
-                    return max_seq_len is None or x.shape[0] <= max_seq_len
+                    seq_size = max_seq_len is None or x.shape[0] <= max_seq_len
+
+                    prop_emissive = get_prop_emissive(x)
+
+                    emissive = (min_prop_emissive is None
+                                or prop_emissive >= min_prop_emissive)
+
+                    return seq_size and emissive
 
                 self.data = list(filter(valid_item, enumerate(data_file)))
                 if data_count_limit is not None:
                     self.data = self.data[:data_count_limit]
         else:
-            self.max_seq_len = 1
+            self.overall_max_seq_len = 1
+            self.max_prop_emissive = 0.5
+            self.min_prop_emissive = 0.5
+            self.avg_prop_emissive = 0.5
 
         self.get_img_path = get_img_path
         self.transform = transform
@@ -192,6 +215,7 @@ def load_dataset(pickle_path,
                  process_input=lambda x: x,
                  data_count_limit=None,
                  max_seq_len=None,
+                 min_prop_emissive=None,
                  num_replicas=1,
                  rank=0):
     dataset = RenderedDataset(pickle_path,
@@ -201,7 +225,8 @@ def load_dataset(pickle_path,
                               fake_data=fake_data,
                               process_input=process_input,
                               data_count_limit=data_count_limit,
-                              max_seq_len=max_seq_len)
+                              max_seq_len=max_seq_len,
+                              min_prop_emissive=min_prop_emissive)
 
     # we load in chunks to ensure each batch has consistant size
     # the dataset must have a consistant size per each group of batch_size
@@ -242,4 +267,4 @@ def load_dataset(pickle_path,
         train_sampler.set_epoch(epoch)
         val_sampler.set_epoch(epoch)  # not really required
 
-    return train_loader, val_loader, epoch_callback, dataset.max_seq_len
+    return train_loader, val_loader, epoch_callback, dataset

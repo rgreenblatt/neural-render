@@ -228,10 +228,13 @@ def main():
     if increase_seq:
         max_seq_len = cfg.start_max_seq_len
 
-    train, test, epoch_callback, overall_max_seq_len = get_dataset(max_seq_len)
+    train, test, epoch_callback, dataset = get_dataset(max_seq_len)
 
     if not disable_all_output:
-        print("overall max seq len:", overall_max_seq_len)
+        print("overall max seq len:", dataset.overall_max_seq_len)
+        print("overall max prop emissive:", dataset.max_prop_emissive)
+        print("overall min prop emissive:", dataset.min_prop_emissive)
+        print("overall avg prop emissive:", dataset.avg_prop_emissive)
 
     step = 0
 
@@ -244,7 +247,7 @@ def main():
         if increase_seq and (epoch % cfg.seq_increase_freq) == 0:
             if epoch != 0:
                 max_seq_len *= 2
-            if max_seq_len > overall_max_seq_len:
+            if max_seq_len > dataset.overall_max_seq_len:
                 train, test, epoch_callback, _ = get_dataset(None)
                 if not disable_all_output:
                     print(
@@ -263,7 +266,7 @@ def main():
                         .format(epoch, max_seq_len,
                                 len(train) * world_batch_size))
                 lr_schedule = LRSched(scaled_lr,
-                                      cfg.seq_doubling_time,
+                                      cfg.seq_increase_freq,
                                       start_div_factor=8.0,
                                       pct_start=1.0,
                                       offset=epoch)
