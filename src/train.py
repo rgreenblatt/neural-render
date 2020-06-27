@@ -224,7 +224,8 @@ def main():
                             rank=cfg.local_rank)
 
     max_seq_len = cfg.max_seq_len
-    if cfg.start_max_seq_len is not None:
+    increase_seq = cfg.start_max_seq_len is not None
+    if increase_seq:
         max_seq_len = cfg.start_max_seq_len
 
     train, test, epoch_callback, overall_max_seq_len = get_dataset(max_seq_len)
@@ -240,8 +241,7 @@ def main():
         print()
 
     for epoch in range(cfg.epochs):
-        if (cfg.start_max_seq_len is not None
-                and epoch % cfg.seq_doubling_time == 0):
+        if increase_seq and (epoch % cfg.seq_increase_freq) == 0:
             if epoch != 0:
                 max_seq_len *= 2
             if max_seq_len > overall_max_seq_len:
@@ -253,8 +253,8 @@ def main():
                             len(train) * world_batch_size))
                 lr_schedule = LRSched(scaled_lr,
                                       cfg.epochs - epoch,
-                                      start_div_factor=16.0,
                                       offset=epoch)
+                increase_seq = False
             else:
                 train, test, epoch_callback, _ = get_dataset(max_seq_len)
                 if not disable_all_output:
@@ -262,9 +262,9 @@ def main():
                         "at epoch {}, setting max seq len to {}, train size {}"
                         .format(epoch, max_seq_len,
                                 len(train) * world_batch_size))
-                lr_schedule = LRSched(scaled_lr * 0.5,
+                lr_schedule = LRSched(scaled_lr,
                                       cfg.seq_doubling_time,
-                                      start_div_factor=2.0,
+                                      start_div_factor=8.0,
                                       pct_start=1.0,
                                       offset=epoch)
 
