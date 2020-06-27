@@ -64,7 +64,7 @@ class Config(argparse.Namespace):
         parser.add_argument('--valid-split-seed', type=int, default=0)
         parser.add_argument('--max-seq-len', type=int, default=None)
         parser.add_argument('--start-max-seq-len', type=int, default=None)
-        parser.add_argument('--seq-doubling-time', type=int, default=2)
+        parser.add_argument('--seq-increase-freq', type=int, default=2)
         parser.add_argument('--data-count-limit', type=int, default=None)
         parser.add_argument('--amp-verbosity', type=int, default=0)
         parser.add_argument('--train-images-to-save',
