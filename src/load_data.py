@@ -206,6 +206,7 @@ class DatasetManager():
                  resolution,
                  batch_size,
                  validation_prop,
+                 max_validation_size,
                  seed,
                  num_workers=0,
                  fake_data=False,
@@ -231,7 +232,7 @@ class DatasetManager():
         np.random.seed(seed)
 
         indices = list(range(num_samples))
-        split = int(num_samples * validation_prop)
+        split = min(int(num_samples * validation_prop), max_validation_size)
 
         np.random.shuffle(indices)
         self.train_subset, self.val_subset = indices[split:], indices[:split]

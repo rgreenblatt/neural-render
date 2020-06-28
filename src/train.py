@@ -95,6 +95,7 @@ def main():
 
     batch_size = cfg.batch_size
     valid_prop = 0.2
+    max_valid_size = 20000
 
     show_model_info = cfg.show_model_info and not disable_all_output
 
@@ -212,6 +213,7 @@ def main():
                                img_width,
                                batch_size,
                                valid_prop,
+                               max_valid_size,
                                cfg.valid_split_seed,
                                num_workers=8,
                                fake_data=cfg.fake_data,
