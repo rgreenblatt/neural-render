@@ -19,7 +19,7 @@ from arch import net_params
 from config import Config
 from constants import pickle_path, get_img_path
 from criterion import PerceptualLoss
-from load_data import load_dataset
+from load_data import DatasetManager
 from model import Net
 from torch_utils import LRSched, linear_to_srgb, LossTracker, ImageTracker
 from utils import mkdirs, PrintAndLog
@@ -207,22 +207,18 @@ def main():
     train_batches_save = math.ceil(cfg.train_images_to_save / batch_size)
     test_batches_save = math.ceil(cfg.test_images_to_save / batch_size)
 
-    def get_dataset(max_seq_len, min_prop_emissive):
-        return load_dataset(pickle_path,
-                            get_img_path,
-                            img_width,
-                            batch_size,
-                            valid_prop,
-                            cfg.valid_split_seed,
-                            True,
-                            num_workers=8,
-                            fake_data=cfg.fake_data,
-                            process_input=process_input,
-                            data_count_limit=cfg.data_count_limit,
-                            max_seq_len=max_seq_len,
-                            min_prop_emissive=min_prop_emissive,
-                            num_replicas=world_size,
-                            rank=cfg.local_rank)
+    dataset_m = DatasetManager(pickle_path,
+                               get_img_path,
+                               img_width,
+                               batch_size,
+                               valid_prop,
+                               cfg.valid_split_seed,
+                               num_workers=8,
+                               fake_data=cfg.fake_data,
+                               process_input=process_input,
+                               data_count_limit=cfg.data_count_limit,
+                               num_replicas=world_size,
+                               rank=cfg.local_rank)
 
     max_seq_len = None
     min_prop_emissive = None
@@ -234,14 +230,15 @@ def main():
     if increase_max_seq_len:
         min_prop_emissive = cfg.start_min_prop_emissive
 
-    train, test, epoch_callback, dataset = get_dataset(max_seq_len,
-                                                       min_prop_emissive)
+    train, test, epoch_callback = dataset_m.get_train_test(
+        max_seq_len, min_prop_emissive)
 
     if not disable_all_output:
-        print("overall max seq len:", dataset.overall_max_seq_len)
-        print("overall max prop emissive:", dataset.max_prop_emissive)
-        print("overall min prop emissive:", dataset.min_prop_emissive)
-        print("overall avg prop emissive:", dataset.avg_prop_emissive)
+        print("overall max seq len:", dataset_m.overall_max_seq_len)
+        print("overall avg seq len:", dataset_m.overall_avg_seq_len)
+        print("overall max prop emissive:", dataset_m.max_prop_emissive)
+        print("overall min prop emissive:", dataset_m.min_prop_emissive)
+        print("overall avg prop emissive:", dataset_m.avg_prop_emissive)
 
     step = 0
 
@@ -255,7 +252,7 @@ def main():
             if epoch != 0:
                 if max_seq_len is not None:
                     max_seq_len *= 2
-                    if max_seq_len > dataset.overall_max_seq_len:
+                    if max_seq_len > dataset_m.overall_max_seq_len:
                         max_seq_len = None
                 if min_prop_emissive is not None:
                     min_prop_emissive -= cfg.min_prop_emissive_change_rate
@@ -276,7 +273,7 @@ def main():
                                       pct_start=1.0,
                                       offset=epoch)
 
-            train, test, epoch_callback, dataset = get_dataset(
+            train, test, epoch_callback = dataset_m.get_train_test(
                 max_seq_len, min_prop_emissive)
             if not disable_all_output:
                 print("max seq len {}, min prop emissive {}, train size {}".

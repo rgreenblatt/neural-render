@@ -20,43 +20,33 @@ def chunks_drop_last(lst, n):
         yield lst[i:i + n]
 
 
+def get_prop_emissive(x):
+    count_emissive = sum(map(lambda x: 1 if (x[17:] > 0).all() else 0, x))
+
+    return count_emissive / x.shape[0]
+
+
 class RenderedDataset(torch.utils.data.Dataset):
     def __init__(self, pickle_path, get_img_path, resolution, transform,
-                 fake_data, process_input, data_count_limit, max_seq_len,
-                 min_prop_emissive):
+                 fake_data, process_input, data_count_limit):
         if not fake_data:
             with open(pickle_path, "rb") as f:
-                data_file = pickle.load(f)
-                self.overall_max_seq_len = max(map(lambda x: x.shape[0], data_file))
+                self.data = pickle.load(f)
 
-                def get_prop_emissive(x):
-                    count_emissive = sum(
-                        map(lambda x: 1 if (x[17:] > 0).all() else 0, x))
+                if data_count_limit is not None:
+                    self.data = self.data[:data_count_limit]
 
-                    return count_emissive / x.shape[0]
+                seq_lens = list(map(lambda x: x.shape[0], self.data))
+                self.overall_max_seq_len = max(seq_lens)
+                self.overall_avg_seq_len = np.mean(seq_lens)
 
-                emissive_props = list(map(get_prop_emissive, data_file))
+                emissive_props = list(map(get_prop_emissive, self.data))
                 self.max_prop_emissive = max(emissive_props)
                 self.min_prop_emissive = min(emissive_props)
                 self.avg_prop_emissive = np.mean(emissive_props)
-
-
-                def valid_item(i_x):
-                    x = i_x[1]
-                    seq_size = max_seq_len is None or x.shape[0] <= max_seq_len
-
-                    prop_emissive = get_prop_emissive(x)
-
-                    emissive = (min_prop_emissive is None
-                                or prop_emissive >= min_prop_emissive)
-
-                    return seq_size and emissive
-
-                self.data = list(filter(valid_item, enumerate(data_file)))
-                if data_count_limit is not None:
-                    self.data = self.data[:data_count_limit]
         else:
             self.overall_max_seq_len = 1
+            self.overall_avg_seq_len = 1
             self.max_prop_emissive = 0.5
             self.min_prop_emissive = 0.5
             self.avg_prop_emissive = 0.5
@@ -67,13 +57,13 @@ class RenderedDataset(torch.utils.data.Dataset):
         self.fake_data = fake_data
         self.process_input = process_input
 
-    def __getitem__(self, data_index):
+    def __getitem__(self, index):
         if self.fake_data:
             image = np.zeros((self.resolution, self.resolution, 3))
             inp = np.ones((1, 20))  # TODO: fix hardcoded size...
         else:
-            index, inp = self.data[data_index]
             image = load_exr(self.get_img_path(index))
+            inp = self.data[index]
 
             assert image.shape[0] == image.shape[1], "must be square"
 
@@ -94,6 +84,12 @@ class RenderedDataset(torch.utils.data.Dataset):
             return 65536
         else:
             return len(self.data)
+
+    def filter_indexes_valid(self, indexes, is_valid):
+        if self.fake_data:
+            return indexes
+        else:
+            return list(filter(lambda i: is_valid(self.data[i]), indexes))
 
 
 class ToTensor(object):
@@ -203,68 +199,92 @@ class SubsetRandomDistributedSampler(torch.utils.data.sampler.Sampler):
         self.epoch = epoch
 
 
-def load_dataset(pickle_path,
+class DatasetManager():
+    def __init__(self,
+                 pickle_path,
                  get_img_path,
                  resolution,
                  batch_size,
                  validation_prop,
                  seed,
-                 shuffle_split,
                  num_workers=0,
                  fake_data=False,
                  process_input=lambda x: x,
                  data_count_limit=None,
-                 max_seq_len=None,
-                 min_prop_emissive=None,
                  num_replicas=1,
                  rank=0):
-    dataset = RenderedDataset(pickle_path,
-                              get_img_path,
-                              resolution,
-                              transform=ToTensor(),
-                              fake_data=fake_data,
-                              process_input=process_input,
-                              data_count_limit=data_count_limit,
-                              max_seq_len=max_seq_len,
-                              min_prop_emissive=min_prop_emissive)
+        self.dataset = RenderedDataset(pickle_path,
+                                       get_img_path,
+                                       resolution,
+                                       transform=ToTensor(),
+                                       fake_data=fake_data,
+                                       process_input=process_input,
+                                       data_count_limit=data_count_limit)
+        self.overall_max_seq_len = self.dataset.overall_max_seq_len
+        self.overall_avg_seq_len = self.dataset.overall_avg_seq_len
+        self.max_prop_emissive = self.dataset.max_prop_emissive
+        self.min_prop_emissive = self.dataset.min_prop_emissive
+        self.avg_prop_emissive = self.dataset.avg_prop_emissive
 
-    # we load in chunks to ensure each batch has consistant size
-    # the dataset must have a consistant size per each group of batch_size
-    num_samples = len(dataset)
+        num_samples = len(self.dataset)
 
-    np.random.seed(seed)
+        np.random.seed(seed)
 
-    indices = list(range(num_samples))
-    split = int(num_samples * validation_prop)
+        indices = list(range(num_samples))
+        split = int(num_samples * validation_prop)
 
-    if shuffle_split:
         np.random.shuffle(indices)
-    train_subset, val_subset = indices[split:], indices[:split]
+        self.train_subset, self.val_subset = indices[split:], indices[:split]
 
-    train_sampler = SubsetRandomDistributedSampler(train_subset,
-                                                   num_replicas=num_replicas,
-                                                   rank=rank)
-    val_sampler = SubsetRandomDistributedSampler(val_subset,
-                                                 num_replicas=num_replicas,
-                                                 rank=rank,
-                                                 shuffle=False)
+        self.batch_size = batch_size
+        self.num_workers = num_workers
+        self.num_workers = num_workers
+        self.num_replicas = num_replicas
+        self.rank = rank
 
-    def make_loader(sampler):
-        return torch.utils.data.DataLoader(
-            dataset,
-            batch_size=batch_size,
-            num_workers=num_workers,
-            sampler=sampler,
-            pin_memory=True,
-            drop_last=True,
-            collate_fn=mask_collate_fn,
-        )
+    def get_train_test(self, max_seq_len, min_prop_emissive):
+        def is_valid(x):
+            seq_size = max_seq_len is None or x.shape[0] <= max_seq_len
 
-    train_loader = make_loader(train_sampler)
-    val_loader = make_loader(val_sampler)
+            prop_emissive = get_prop_emissive(x)
 
-    def epoch_callback(epoch):
-        train_sampler.set_epoch(epoch)
-        val_sampler.set_epoch(epoch)  # not really required
+            emissive = (min_prop_emissive is None
+                        or prop_emissive >= min_prop_emissive)
 
-    return train_loader, val_loader, epoch_callback, dataset
+            return seq_size and emissive
+
+        train_subset = self.dataset.filter_indexes_valid(
+            self.train_subset, is_valid)
+        val_subset = self.dataset.filter_indexes_valid(self.val_subset,
+                                                       is_valid)
+
+        print("train hash:", hash(tuple(train_subset)), "test hash:",
+              hash(tuple(val_subset)))
+
+        train_sampler = SubsetRandomDistributedSampler(
+            train_subset, num_replicas=self.num_replicas, rank=self.rank)
+        val_sampler = SubsetRandomDistributedSampler(
+            val_subset,
+            num_replicas=self.num_replicas,
+            rank=self.rank,
+            shuffle=False)
+
+        def make_loader(sampler):
+            return torch.utils.data.DataLoader(
+                self.dataset,
+                batch_size=self.batch_size,
+                num_workers=self.num_workers,
+                sampler=sampler,
+                pin_memory=True,
+                drop_last=True,
+                collate_fn=mask_collate_fn,
+            )
+
+        train_loader = make_loader(train_sampler)
+        val_loader = make_loader(val_sampler)
+
+        def epoch_callback(epoch):
+            train_sampler.set_epoch(epoch)
+            val_sampler.set_epoch(epoch)  # not really required
+
+        return train_loader, val_loader, epoch_callback
