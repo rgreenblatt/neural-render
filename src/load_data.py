@@ -259,9 +259,6 @@ class DatasetManager():
         val_subset = self.dataset.filter_indexes_valid(self.val_subset,
                                                        is_valid)
 
-        print("train hash:", hash(tuple(train_subset)), "test hash:",
-              hash(tuple(val_subset)))
-
         train_sampler = SubsetRandomDistributedSampler(
             train_subset, num_replicas=self.num_replicas, rank=self.rank)
         val_sampler = SubsetRandomDistributedSampler(
