@@ -226,8 +226,7 @@ class MultiHeadedSelfAttention(nn.Module):
         # divide by sqrt of S_v
         if value_key_masks is not None:
             scores_div_sqrt = scores / torch.sqrt(
-                value_key_masks.view(value_key_counts.size(0), 1, 1,
-                                     value_key_masks.size(1)))
+                value_key_counts.view(value_key_counts.size(0), 1, 1, 1))
         else:
             scores_div_sqrt = scores / np.sqrt(k.size(-1))
 

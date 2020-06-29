@@ -372,3 +372,6 @@ TODO:
  
 Fixed bug with attn code - could have caused issues with sequence length
 variability: testing now
+
+TODO:
+ - test batches work as expected...
