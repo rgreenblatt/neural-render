@@ -70,11 +70,10 @@ def main():
         for result in results:
             for i in range(1, len(result)):
                 l1 = (result[0] - result[i]).abs().mean()
-                assert l1 < 1e-5, "failed at {}, l1 {}".format(i, l1)
+                assert l1 < delta, "failed at {}, l1 {}".format(i, l1)
         for i in range(1, len(results)):
             l1 = (results[0][0] - results[i][0]).abs().mean()
-            assert l1 > 1e-5, "failed at {}, l1 {}".format(i, l1)
-
+            assert l1 > delta, "failed at {}, l1 {}".format(i, l1)
 
 
 if __name__ == "__main__":
