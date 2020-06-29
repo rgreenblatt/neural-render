@@ -221,7 +221,14 @@ class MultiHeadedSelfAttention(nn.Module):
         q, k, v = (x.transpose(1, 2) for x in [q, k, v])
 
         # (B, H, S_q, W_k) @ (B, H, W_k, S_v) -> (B, H, S_q, S_v)
-        scores = (q @ k.transpose(-2, -1)) / np.sqrt(k.size(-1))
+        scores = q @ k.transpose(-2, -1)
+
+        # divide by sqrt of S_v
+        if value_key_masks is not None:
+            scores_div_sqrt = scores / torch.sqrt(
+                value_key_masks.view(value_key_counts.size(0), 1, 1, 1))
+        else:
+            scores_div_sqrt = scores / np.sqrt(k.size(-1))
 
         if self.is_cross_attn:
             if value_key_masks is not None:
@@ -244,8 +251,8 @@ class MultiHeadedSelfAttention(nn.Module):
                 value_key_masks == 0,
                 torch.full_like(value_key_masks, float("-inf")),
                 torch.zeros_like(value_key_masks))
-            masked_scores = scores + add_mask.view(add_mask.size(0), 1, 1,
-                                                   add_mask.size(1))
+            masked_scores = scores_div_sqrt + add_mask.view(
+                add_mask.size(0), 1, 1, add_mask.size(1))
         else:
             masked_scores = scores
 

@@ -355,3 +355,20 @@ For now, I will keep position_ch.
 I adjusted channels so that it stays the same and then goes down.
 This performed slightly worse actually. Not sure why. Switching to path
 traced images.
+
+2020-06-28 21:25
+
+Rendered 300_000 images. Now running baselines. To get training to work with
+long sequence lengths, progressive training is needed. Also, 0.25 lr-multiplier
+to avoid divergence.
+
+TODO:
+ - even lower lr.
+ - see if divergence etc issues go away when removing image-to-seq
+ - see if divergence etc issues go away when removing seq-to-image
+   (image-to-seq can also be removed in this case)
+ - see if divergence etc issues go away when changing gain bias based on
+   sequence len.
+ 
+Fixed bug with attn code - could have caused issues with sequence length
+variability: testing now
