@@ -315,10 +315,15 @@ def main():
             actual_images_train = ImageTracker()
             output_images_train = ImageTracker()
 
-        if use_distributed:
-            net.module.reset_running_stats()
-        else:
-            net.reset_running_stats()
+        steps_since_reset = 0
+
+        def reset_bn():
+            if use_distributed:
+                net.module.reset_running_stats()
+            else:
+                net.reset_running_stats()
+
+        reset_bn()
 
         def evaluate_on_data(data):
             image = data['image'].to(device)
@@ -336,6 +341,7 @@ def main():
             # this wouldn't be strictly accurate if we had partial batches
             step += world_batch_size
             steps_since_display += world_batch_size
+            steps_since_reset += world_batch_size
 
             optimizer.zero_grad()
 
@@ -355,6 +361,10 @@ def main():
 
             if cfg.profile and step >= cfg.profile_len:
                 return
+
+            if steps_since_reset >= cfg.reset_freq:
+                reset_bn()
+                steps_since_reset = 0
 
             if steps_since_display >= cfg.display_freq:
                 train_display()

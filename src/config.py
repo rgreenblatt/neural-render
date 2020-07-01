@@ -81,6 +81,12 @@ class Config(argparse.Namespace):
             default=5000,
             help='number of samples per display print out and tensorboard save'
         )
+        parser.add_argument(
+            '--reset-freq',
+            type=int,
+            default=5000,
+            help='number of samples per resetting bn stats'
+        )
         parser.add_argument('--show-model-info', action='store_true')
         parser.add_argument('--name', required=True)
 
