@@ -265,13 +265,14 @@ def main():
                 # main lr schedule
                 lr_schedule = LRSched(scaled_lr,
                                       cfg.epochs - epoch,
+                                      start_div_factor=16.0,
                                       offset=epoch)
                 change_factors = False
             else:
                 # change_factors lr schedule
                 lr_schedule = LRSched(scaled_lr,
                                       cfg.change_factors_freq,
-                                      start_div_factor=8.0,
+                                      start_div_factor=16.0,
                                       pct_start=1.0,
                                       offset=epoch)
 

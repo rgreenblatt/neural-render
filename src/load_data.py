@@ -50,6 +50,8 @@ class RenderedDataset(torch.utils.data.Dataset):
             self.max_prop_emissive = 0.5
             self.min_prop_emissive = 0.5
             self.avg_prop_emissive = 0.5
+            self.data_count = (data_count_limit
+                               if data_count_limit is not None else 65536)
 
         self.get_img_path = get_img_path
         self.transform = transform
@@ -81,7 +83,7 @@ class RenderedDataset(torch.utils.data.Dataset):
 
     def __len__(self):
         if self.fake_data:
-            return 65536
+            return self.data_count
         else:
             return len(self.data)
 

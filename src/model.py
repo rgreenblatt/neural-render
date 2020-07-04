@@ -2,7 +2,7 @@ import torch
 from torch import nn
 
 from layers import (MBConvGBlock, Attention, Transformer, SeqToImageStart,
-                    SeqToImage, ImageToSeq, ConfigurableNorm, SeqBlock)
+                    SeqToImage, ImageToSeq, ConfigurableNorm)
 from torch_utils import Swish, MemoryEfficientSwish, get_position_ch
 
 
@@ -40,7 +40,6 @@ class Net(nn.Module):
         self._image_blocks = nn.ModuleList([])
         self._image_to_seq_blocks = nn.ModuleList([])
         self._seq_blocks = nn.ModuleList([])
-        self._seq_to_image_blocks = nn.ModuleList([])
 
         last_ch = blocks_args[-1].output_ch
 
@@ -58,15 +57,9 @@ class Net(nn.Module):
                     get_block(ImageToSeq,
                               block_args.use_image_to_seq_this_block,
                               block_args.image_to_seq_args()))
-                which_seq_block = (SeqBlock if block_args.alternate_seq_block
-                                   else Transformer)
                 self._seq_blocks.append(
-                    get_block(which_seq_block, block_args.use_seq_this_block,
+                    get_block(Transformer, block_args.use_seq_this_block,
                               block_args.transformer_args()))
-                self._seq_to_image_blocks.append(
-                    get_block(SeqToImage,
-                              block_args.use_seq_to_image_this_block,
-                              block_args.seq_to_image_args()))
 
             if (self._global_args.use_nonlocal
                     and i == self._global_args.nonlocal_index - 1):
@@ -139,25 +132,24 @@ class Net(nn.Module):
                                       inputs.dtype, inputs.device)
 
         all_blocks = (self._image_blocks, self._image_to_seq_blocks,
-                      self._seq_blocks, self._seq_to_image_blocks)
+                      self._seq_blocks)
 
         for i, blocks in enumerate(zip(*all_blocks)):
-            (image_b, image_to_seq_b, seq_b, seq_to_image_b) = blocks
+            (image_b, image_to_seq_b, seq_b) = blocks
 
             this_position_ch = position_ch[image.size(2)]
 
             if self._global_args.checkpoint_conv:
                 image = torch.utils.checkpoint.checkpoint(
-                    image_b, image, this_position_ch, seq)
+                    image_b, image, this_position_ch, seq, masks, counts)
             else:
-                image = image_b(image, this_position_ch, seq)
+                image = image_b(image, this_position_ch, seq, masks, counts)
 
-            if image_to_seq_b is not None:
-                seq = image_to_seq_b(seq, image)
-            if seq_b is not None:
-                seq = seq_b(seq, masks, counts)
-            if seq_to_image_b is not None:
-                image = seq_to_image_b(seq, masks, counts, image)
+            if i != len(all_blocks) - 1:
+                if image_to_seq_b is not None:
+                    seq = image_to_seq_b(seq, image)
+                if seq_b is not None:
+                    seq = seq_b(seq, masks, counts)
 
             if self._global_args.use_nonlocal and i == self._attention_index:
                 image = self._attention(image)

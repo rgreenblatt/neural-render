@@ -1,7 +1,5 @@
 import collections
 import inspect
-import re
-from distutils.util import strtobool
 import math
 
 from layers import (MBConvCfg, ImageToSeqCfg, TransformerCfg, SeqToImageCfg,
@@ -30,6 +28,8 @@ _GlobalArgParams = collections.namedtuple('GlobalArgsParams', [
     'seq_size',
     'base_transformer_n_heads',
     'base_transformer_n_layers',
+    'base_transformer_apply_cross_attn',
+    'base_transformer_share_params',
     'nonlocal_index',
     'use_nonlocal',
     'start_ch',
@@ -43,10 +43,13 @@ _GlobalArgParams = collections.namedtuple('GlobalArgsParams', [
 
 class GlobalArgs(_GlobalArgParams):
     def base_transformer_args(self):
-        return TransformerCfg(size=self.seq_size,
-                              n_heads=self.base_transformer_n_heads,
-                              n_layers=self.base_transformer_n_layers,
-                              hidden_ff_size=self.seq_size * 4)
+        return TransformerCfg(
+            size=self.seq_size,
+            n_heads=self.base_transformer_n_heads,
+            n_layers=self.base_transformer_n_layers,
+            hidden_ff_size=self.seq_size * 4,
+            cross_attn=self.base_transformer_apply_cross_attn,
+            share_params=self.base_transformer_share_params)
 
     def seq_to_image_start_args(self):
         return subset_named_tuple(
@@ -66,22 +69,23 @@ _BlockArgsParams = collections.namedtuple('BlockArgsParams', [
     'se_ratio',
     'use_position_ch',
     'seq_size',
-    'attn_ch',
     'seq_n_heads',
     'transformer_n_layers',
-    'image_n_heads',
     'norm_style',
     'round_by',
     'show_info',
     'use_seq_to_image',
     'use_image_to_seq',
     'use_seq_block',
-    'add_seq_to_image',
     'add_seq_to_image_mix_bias',
     'add_image_to_seq_mix_bias',
     'full_seq_frequency',
-    'alternate_seq_block',
+    'transformer_apply_cross_attn',
+    'transformer_share_params',
     'attn_excitation',
+    'image_to_seq_attn_ch_frac',
+    'image_to_seq_key_ch_multip',
+    'image_ch_per_head',
     'continuously_vary_ch',
 ])
 
@@ -127,9 +131,6 @@ class BlockArgs(_BlockArgsParams):
         self.input_ch_conv = round_valid(self.input_ch_this_block)
         self.output_ch_conv = round_valid(self.output_ch_this_block)
 
-        if self.use_seq_to_image_this_block and not self.add_seq_to_image:
-            self.output_ch_conv -= round(self.attn_ch)
-
         if self.show_info:
             print("block num:", self.block_num)
             print("input conv at n:", self.input_ch_conv)
@@ -140,11 +141,23 @@ class BlockArgs(_BlockArgsParams):
         self.block_num += 1
 
     def mbconv_args(self):
-        return subset_named_tuple(MBConvCfg,
-                                  self,
-                                  upsample=self.upsample_this_block,
-                                  input_ch=self.input_ch_conv,
-                                  output_ch=self.output_ch_conv)
+        return subset_named_tuple(
+            MBConvCfg,
+            self,
+            upsample=self.upsample_this_block,
+            input_ch=self.input_ch_conv,
+            output_ch=self.output_ch_conv,
+            use_seq_to_image_this_block=self.use_seq_to_image_this_block,
+            attn_ch_frac=self.image_to_seq_attn_ch_frac,
+            key_ch_multip=self.image_to_seq_key_ch_multip,
+            image_ch_per_head=self.image_ch_per_head,
+            seq_to_image_args=SeqToImageCfg(
+                image_ch=None,
+                seq_size=self.seq_size,
+                key_ch=None,
+                output_ch=None,
+                n_heads=None,
+                mix_bias=self.add_seq_to_image_mix_bias))
 
     def image_to_seq_args(self):
         # n_heads could be configured further
@@ -158,15 +171,9 @@ class BlockArgs(_BlockArgsParams):
         return TransformerCfg(size=self.seq_size,
                               n_heads=self.seq_n_heads,
                               n_layers=self.transformer_n_layers,
-                              hidden_ff_size=self.seq_size * 4)
-
-    def seq_to_image_args(self):
-        return SeqToImageCfg(image_ch=self.output_ch_conv,
-                             seq_size=self.seq_size,
-                             output_ch=self.attn_ch,
-                             n_heads=self.image_n_heads,
-                             add_all_ch=self.add_seq_to_image,
-                             mix_bias=self.add_seq_to_image_mix_bias)
+                              hidden_ff_size=self.seq_size * 4,
+                              cross_attn=self.transformer_apply_cross_attn,
+                              share_params=self.transformer_share_params)
 
 
 def net_params(input_size, output_width, cfg):
@@ -209,13 +216,11 @@ def net_params(input_size, output_width, cfg):
 
         width *= 2
 
-        attn_ch = output_ch * cfg.attn_ch_frac
+        expand_ratio = 6
 
         if cfg.show_model_info:
             print("{}: input: {}, output: {}, attn: {}, width: {}, repeat: {}".
-                  format(i, input_ch, output_ch, attn_ch, width, num_repeat))
-
-        expand_ratio = 6
+                  format(i, input_ch, output_ch, width, num_repeat))
 
         blocks_args.append(
             BlockArgs(
@@ -230,22 +235,23 @@ def net_params(input_size, output_width, cfg):
                 se_ratio=0.25 if cfg.use_se else None,
                 use_position_ch=not cfg.no_position_ch,
                 seq_size=cfg.seq_size,
-                attn_ch=round(attn_ch),
                 seq_n_heads=8,
                 transformer_n_layers=cfg.seq_transformer_n_layers,
-                image_n_heads=2,  # TODO: test making fixed per...
                 norm_style=cfg.norm_style,
                 round_by=8,
                 show_info=cfg.show_model_info,
                 use_seq_to_image=not cfg.no_seq_to_image,
                 use_image_to_seq=not cfg.no_image_to_seq,
                 use_seq_block=cfg.use_seq_blocks,
-                add_seq_to_image=not cfg.no_add_seq_to_image,
                 add_seq_to_image_mix_bias=cfg.add_seq_to_image_mix_bias,
                 add_image_to_seq_mix_bias=cfg.add_image_to_seq_mix_bias,
                 full_seq_frequency=cfg.full_seq_frequency,
-                alternate_seq_block=cfg.alternate_seq_block,
+                transformer_share_params=cfg.transformer_param_sharing,
+                transformer_apply_cross_attn=cfg.transformer_cross_attn,
                 attn_excitation=cfg.attn_excitation,
+                image_to_seq_attn_ch_frac=cfg.attn_ch_frac,
+                image_to_seq_key_ch_multip=cfg.key_ch_multip,
+                image_ch_per_head=cfg.image_ch_per_head,
                 continuously_vary_ch=is_linear,
             ))
         input_ch = output_ch
@@ -257,6 +263,8 @@ def net_params(input_size, output_width, cfg):
         seq_size=cfg.seq_size,
         base_transformer_n_heads=8,
         base_transformer_n_layers=cfg.base_transformer_n_layers,
+        base_transformer_share_params=cfg.transformer_param_sharing,
+        base_transformer_apply_cross_attn=cfg.transformer_cross_attn,
         nonlocal_index=nonlocal_index,
         use_nonlocal=cfg.use_nonlocal,
         start_ch=round(start_ch),

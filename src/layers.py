@@ -1,5 +1,6 @@
 import functools
 import collections
+import math
 
 import torch
 import torch.nn as nn
@@ -146,40 +147,33 @@ class MultiHeadedSelfAttention(nn.Module):
                  key_size,
                  output_size,
                  n_heads,
-                 is_cross_attn=False,
-                 use_proj_c=True,
+                 overall_weighting=False,
                  input_is_query=False,
                  mix_bias=-10.0):
         super().__init__()
 
-        self.is_cross_attn = is_cross_attn
-        self.use_proj_c = use_proj_c and not self.is_cross_attn
+        self.overall_weighting = overall_weighting
         self.input_is_query = input_is_query
         self.output_size = output_size
         self.mix_bias = mix_bias
 
         self._proj_k = nn.Linear(value_input_size, key_size)
         self._proj_v = nn.Linear(value_input_size, output_size)
-        if self.input_is_query:
-            assert not self.use_proj_c
-        else:
+        if not self.input_is_query:
             self._proj_q = nn.Linear(query_input_size, key_size)
 
         self.n_heads = n_heads
 
-        if self.is_cross_attn:
+        if self.overall_weighting:
             self._overall_gain = nn.Parameter(
                 torch.Tensor(1, self.n_heads, 1, 1))
             self._overall_bias = nn.Parameter(
                 torch.Tensor(1, self.n_heads, 1, 1))
-        elif self.use_proj_c:
-            # added here (TODO: ablation etc important)
-            self._proj_c = nn.Linear(query_input_size, output_size)
 
         self.reset_parameters()
 
     def reset_parameters(self):
-        if self.is_cross_attn:
+        if self.overall_weighting:
             nn.init.ones_(self._overall_gain)
             nn.init.constant_(self._overall_bias, self.mix_bias)
 
@@ -204,11 +198,6 @@ class MultiHeadedSelfAttention(nn.Module):
             # (B, S_q, D_q) -proj-> (B, S_q, D_k)
             q = self._proj_q(pre_query)
 
-        if self.use_proj_c:
-            # I think this might not be needed in general
-            # (B, S_q, D_q) -proj-> (B, S_q, D_o)
-            c = self._proj_c(pre_query)
-
         # (B, S_v, D_v) -proj-> (B, S_q, D_k)
         k = self._proj_k(pre_value_key)
         # (B, S_v, D_v) -proj-> (B, S_q, D_o)
@@ -230,7 +219,7 @@ class MultiHeadedSelfAttention(nn.Module):
         else:
             scores_div_sqrt = scores / np.sqrt(k.size(-1))
 
-        if self.is_cross_attn:
+        if self.overall_weighting:
             if value_key_masks is not None:
                 scores_zeroed = scores * value_key_masks.view(
                     value_key_masks.size(0), 1, 1, value_key_masks.size(1))
@@ -262,11 +251,8 @@ class MultiHeadedSelfAttention(nn.Module):
         # (B, H, S_q, S_v) @ (B, H, S_v, W_o) -> (B, H, S_q, W_o)
         h = (softmax_scores @ v)
 
-        if self.is_cross_attn:
-            # (B, S_q, D_o) -split + trans-> (B, H, S_q, W_o)
-            pq_split = split_last(pre_query[:, :, :self.output_size],
-                                  (self.n_heads, -1)).transpose(1, 2)
-            out = pq_split * (1 - overall_weight) + h * overall_weight
+        if self.overall_weighting:
+            out = h * overall_weight
         else:
             out = h
 
@@ -275,13 +261,6 @@ class MultiHeadedSelfAttention(nn.Module):
 
         # -merge-> (B, S_q, D_o)
         out = merge_last(out, 2)
-
-        if self.is_cross_attn:
-            # add remaining ch
-            out = torch.cat((out, pre_query[:, :, self.output_size:]), dim=2)
-
-        if self.use_proj_c:
-            out = out + c
 
         return out
 
@@ -327,27 +306,37 @@ class LayerNorm(nn.Module):
         return self.gamma * x + self.beta
 
 
-TransformerCfg = collections.namedtuple(
-    'TransformerCfg', ['size', 'n_heads', 'n_layers', 'hidden_ff_size'])
+TransformerCfg = collections.namedtuple('TransformerCfg', [
+    'size', 'n_heads', 'n_layers', 'hidden_ff_size', 'cross_attn',
+    'share_params'
+])
 
 
-class Transformer(nn.Module):
-    """ Transformer with Self-Attentive Blocks and parameter sharing"""
+class TransformerBlock(nn.Module):
     def __init__(self, cfg):
         super().__init__()
 
-        self.n_layers = cfg.n_layers
-        self._attn = MultiHeadedSelfAttention(cfg.size, cfg.size, cfg.size,
-                                              cfg.size, cfg.n_heads)
-        self._proj = nn.Linear(cfg.size, cfg.size)
+        self.cross_attn = cfg.cross_attn
+        self._attn = MultiHeadedSelfAttention(
+            cfg.size,
+            cfg.size,
+            cfg.size,
+            cfg.size,
+            cfg.n_heads,
+            overall_weighting=self.cross_attn)
         self._norm1 = LayerNorm(cfg.size)
         self._pwff = PositionWiseFeedForward(cfg)
-        self._norm2 = LayerNorm(cfg.size)
+        self._swish = MemoryEfficientSwish()
+        if not self.cross_attn:
+            self._norm2 = LayerNorm(cfg.size)
+            self._proj = nn.Linear(cfg.size, cfg.size)
 
     def forward(self, h, masks, counts):
-        # NOTE to self, masking may be useful...
-        for _ in range(self.n_layers):
-            prev_layer = h
+        prev_layer = h
+        if self.cross_attn:
+            h = self._swish(self._norm1(self._pwff(h)))
+            h = self._attn(h, h, masks, counts) + prev_layer
+        else:
             h = self._attn(h, h, masks, counts)
             h = self._norm1(prev_layer + self._proj(h))
             h = self._norm2(h + self._pwff(h))
@@ -364,6 +353,48 @@ class Transformer(nn.Module):
         """
 
         self._pwff.set_swish(memory_efficient)
+
+        self._swish = MemoryEfficientSwish() if memory_efficient else Swish()
+
+
+class Transformer(nn.Module):
+    """ Transformer with Self-Attentive Blocks and parameter sharing"""
+    def __init__(self, cfg):
+        super().__init__()
+
+        self.n_layers = cfg.n_layers
+        self.share_params = cfg.share_params
+        if self.share_params:
+            self._block = TransformerBlock(cfg)
+        else:
+            self._blocks = [
+                TransformerBlock(cfg) for _ in range(self.n_layers)
+            ]
+            self._blocks = nn.ModuleList(self._blocks)
+
+    def forward(self, h, masks, counts):
+        for i in range(self.n_layers):
+            if self.share_params:
+                h = self._block(h, masks, counts)
+            else:
+                h = self._blocks[i](h, masks, counts)
+
+        return h
+
+    def set_swish(self, memory_efficient=True):
+        """Sets swish function as memory efficient (for training) or standard
+           (for export).
+
+        Args:
+            memory_efficient (bool): Whether to use memory-efficient version of
+            swish.
+        """
+
+        if self.share_params:
+            self._block.set_swish(memory_efficient)
+        else:
+            for block in self._blocks:
+                block.set_swish(memory_efficient)
 
 
 SeqToImageStartCfg = collections.namedtuple('SeqToImageStartCfg', [
@@ -398,7 +429,7 @@ class SeqToImageStart(nn.Module):
                                               self.cfg.start_ch,
                                               n_heads,
                                               input_is_query=True,
-                                              use_proj_c=False)
+                                              overall_weighting=True)
 
     def forward(self, x, masks, counts):
         # Uses average and count to produce query
@@ -426,6 +457,125 @@ class SeqToImageStart(nn.Module):
         return seq_to_width(output, self.cfg.start_width)
 
 
+def add_concat(x, y):
+    N_x, C_x, H_x, W_x = x.size()
+    N_y, C_y, H_y, W_y = y.size()
+    assert N_x == N_y
+    assert H_x == H_y
+    assert W_x == W_y
+
+    if C_x <= C_y:
+        return torch.cat((x + y[:, :C_x], y[:, C_x:]), dim=1)
+    else:
+        return add_concat(y, x)
+
+
+ImageToSeqCfg = collections.namedtuple(
+    'ImageToSeqCfg', ['image_ch', 'seq_size', 'n_heads', 'mix_bias'])
+
+
+class ImageToSeq(nn.Module):
+    def __init__(self, cfg):
+        super().__init__()
+
+        self.cfg = cfg
+        self._attn = MultiHeadedSelfAttention(self.cfg.image_ch,
+                                              self.cfg.seq_size,
+                                              self.cfg.seq_size,
+                                              self.cfg.seq_size,
+                                              self.cfg.n_heads,
+                                              overall_weighting=True,
+                                              mix_bias=self.cfg.mix_bias)
+
+    # x is seq (BS x D), y is image type data (B x C x H x W)
+    def forward(self, x, y):
+        return self._attn(width_to_seq(y), x) + x
+
+
+SeqToImageCfg = collections.namedtuple(
+    'SeqToImageCfg',
+    ['image_ch', 'seq_size', 'key_ch', 'output_ch', 'n_heads', 'mix_bias'])
+
+
+class SeqToImage(nn.Module):
+    def __init__(self, cfg):
+        super().__init__()
+
+        self.cfg = cfg
+
+        self._attn = MultiHeadedSelfAttention(self.cfg.seq_size,
+                                              self.cfg.image_ch,
+                                              self.cfg.key_ch,
+                                              self.cfg.output_ch,
+                                              self.cfg.n_heads,
+                                              overall_weighting=True,
+                                              mix_bias=self.cfg.mix_bias)
+
+    # TODO: change how this is added!!!
+    # x is seq (B x S x D), y is image type data (B x C x H x W)
+    def forward(self, x, masks, counts, y):
+        batch_size = y.size(0)
+        height = y.size(2)
+        width = y.size(3)
+        image_size = height * width
+
+        y_seq = width_to_seq(y)
+
+        # attention is applied elementwise to "pixels" (similar to global
+        # attention from AttnNet - just implementation differences)
+        return seq_to_width(self._attn(x, y_seq, masks, counts), width)
+
+
+# A non-local block as used in SA-GAN
+# Note that the implementation as described in the paper is largely incorrect;
+# refer to the released code for the actual implementation.
+class Attention(nn.Module):
+    def __init__(self, ch, name='attention'):
+        super(Attention, self).__init__()
+
+        # Channel multiplier
+        self.ch = ch
+        self.theta = nn.Conv2d(self.ch,
+                               self.ch // 8,
+                               kernel_size=1,
+                               padding=0,
+                               bias=False)
+        self.phi = nn.Conv2d(self.ch,
+                             self.ch // 8,
+                             kernel_size=1,
+                             padding=0,
+                             bias=False)
+        self.g = nn.Conv2d(self.ch,
+                           self.ch // 2,
+                           kernel_size=1,
+                           padding=0,
+                           bias=False)
+        self.o = nn.Conv2d(self.ch // 2,
+                           self.ch,
+                           kernel_size=1,
+                           padding=0,
+                           bias=False)
+        # Learnable gain parameter
+        self.gamma = P(torch.tensor(0.), requires_grad=True)
+
+    def forward(self, x):
+        # Apply convs
+        theta = self.theta(x)
+        phi = F.max_pool2d(self.phi(x), [2, 2])
+        g = F.max_pool2d(self.g(x), [2, 2])
+        # Perform reshapes
+        theta = theta.view(-1, self.ch // 8, x.shape[2] * x.shape[3])
+        phi = phi.view(-1, self.ch // 8, x.shape[2] * x.shape[3] // 4)
+        g = g.view(-1, self.ch // 2, x.shape[2] * x.shape[3] // 4)
+        # Matmul and softmax to get attention maps
+        beta = F.softmax(torch.bmm(theta.transpose(1, 2), phi), -1)
+        # Attention map times g path
+        o = self.o(
+            torch.bmm(g, beta.transpose(1, 2)).view(-1, self.ch // 2,
+                                                    x.shape[2], x.shape[3]))
+        return self.gamma * o + x
+
+
 MBConvCfg = collections.namedtuple('MBConvCfg', [
     'input_ch',
     'seq_size',
@@ -437,6 +587,11 @@ MBConvCfg = collections.namedtuple('MBConvCfg', [
     'se_ratio',
     'use_position_ch',
     'attn_excitation',
+    'use_seq_to_image_this_block',
+    'attn_ch_frac',
+    'key_ch_multip',
+    'image_ch_per_head',
+    'seq_to_image_args',
 ])
 
 
@@ -474,6 +629,23 @@ class MBConvGBlock(nn.Module):
 
         if self.cfg.use_position_ch:
             inp += 2
+
+        if self.cfg.use_seq_to_image_this_block:
+            attn_ch = oup * cfg.attn_ch_frac
+
+            # consider changing this from expand_ratio to something else...
+            seq_to_image_key_ch = attn_ch * cfg.key_ch_multip
+            image_n_heads = math.ceil(seq_to_image_key_ch /
+                                      cfg.image_ch_per_head)
+            round_by = lambda x, y: (round(x) // y) * y
+            attn_ch = round_by(attn_ch, image_n_heads)
+            seq_to_image_key_ch = round_by(seq_to_image_key_ch, image_n_heads)
+
+            self._seq_to_image = SeqToImage(
+                self.cfg.seq_to_image_args._replace(image_ch=inp,
+                                                    n_heads=image_n_heads,
+                                                    key_ch=seq_to_image_key_ch,
+                                                    output_ch=attn_ch))
 
         # if expand ratio == 1 this probably isn't needed...
         self._expand_conv = nn.Conv2d(in_channels=inp,
@@ -526,7 +698,7 @@ class MBConvGBlock(nn.Module):
 
         self._upsample = functools.partial(F.interpolate, scale_factor=2)
 
-    def forward(self, inputs, position_ch, seq):
+    def forward(self, inputs, position_ch, seq, masks, counts):
         """MBConvBlock's forward function.
 
         Args:
@@ -547,15 +719,18 @@ class MBConvGBlock(nn.Module):
 
             x = torch.cat((x, expanded_pos), dim=1)
 
+        before_expand = x
+
         x = self._expand_conv(x)
+        if self.cfg.use_seq_to_image_this_block:
+            seq_val = self._seq_to_image(seq, masks, counts, before_expand)
+            x = add_concat(x, seq_val)
         x = self._bn1(x)
         x = self._swish(x)
 
         if self.cfg.upsample:
             x = self._upsample(x)
             inputs = self._upsample(inputs)
-
-        inputs = inputs[:, :self.cfg.output_ch]
 
         x = self._depthwise_conv(x)
         x = self._bn2(x)
@@ -578,9 +753,7 @@ class MBConvGBlock(nn.Module):
         # Pointwise Convolution
         x = self._project_conv(x)
 
-        return torch.cat(
-            (x[:, :self.cfg.input_ch] + inputs, x[:, self.cfg.input_ch:]),
-            dim=1)
+        return add_concat(x, inputs[:, :self.cfg.output_ch])
 
     def set_swish(self, memory_efficient=True):
         """Sets swish function as memory efficient (for training) or standard (for export).
@@ -594,156 +767,3 @@ class MBConvGBlock(nn.Module):
         self._bn0.reset_running_stats()
         self._bn1.reset_running_stats()
         self._bn2.reset_running_stats()
-
-
-ImageToSeqCfg = collections.namedtuple(
-    'ImageToSeqCfg', ['image_ch', 'seq_size', 'n_heads', 'mix_bias'])
-
-
-class ImageToSeq(nn.Module):
-    def __init__(self, cfg):
-        super().__init__()
-
-        self.cfg = cfg
-        self._attn = MultiHeadedSelfAttention(self.cfg.image_ch,
-                                              self.cfg.seq_size,
-                                              self.cfg.seq_size,
-                                              self.cfg.seq_size,
-                                              self.cfg.n_heads,
-                                              is_cross_attn=True,
-                                              mix_bias=self.cfg.mix_bias)
-
-    # x is seq (BS x D), y is image type data (B x C x H x W)
-    def forward(self, x, y):
-        # no need to account for mask here, values will be added that aren't
-        # used.
-        return self._attn(width_to_seq(y), x)
-
-
-SeqToImageCfg = collections.namedtuple(
-    'SeqToImageCfg',
-    ['image_ch', 'seq_size', 'output_ch', 'n_heads', 'add_all_ch', 'mix_bias'])
-
-
-class SeqToImage(nn.Module):
-    def __init__(self, cfg):
-        super().__init__()
-
-        self.cfg = cfg
-
-        self._proj_q = nn.Conv2d(self.cfg.image_ch,
-                                 self.cfg.output_ch,
-                                 kernel_size=1)
-        self._attn = MultiHeadedSelfAttention(
-            self.cfg.seq_size,
-            self.cfg.image_ch,
-            self.cfg.output_ch,
-            self.cfg.output_ch,
-            self.cfg.n_heads,
-            use_proj_c=False,
-            is_cross_attn=self.cfg.add_all_ch,
-            mix_bias=self.cfg.mix_bias)
-
-    # x is seq (B x S x D), y is image type data (B x C x H x W)
-    def forward(self, x, masks, counts, y):
-        batch_size = y.size(0)
-        height = y.size(2)
-        width = y.size(3)
-        image_size = height * width
-
-        y_seq = width_to_seq(y)
-
-        # attention is applied elementwise to "pixels" (similar to global
-        # attention from AttnNet - just implementation differences)
-        added_values = seq_to_width(self._attn(x, y_seq, masks, counts), width)
-
-        if self.cfg.add_all_ch:
-            return added_values
-        else:
-            return torch.cat((y, added_values), dim=1)
-
-
-class SeqBlock(nn.Module):
-    def __init__(self, cfg):
-        super().__init__()
-
-        self.cfg = cfg
-
-        assert cfg.n_layers == 1  # TODO
-
-        self._ff_block = PositionWiseFeedForward(self.cfg)
-        # TODO: make mix bias configurable
-        self._attn = MultiHeadedSelfAttention(self.cfg.size,
-                                              self.cfg.size,
-                                              self.cfg.size,
-                                              self.cfg.size,
-                                              self.cfg.n_heads,
-                                              is_cross_attn=True,
-                                              mix_bias=0)
-
-        self._swish = MemoryEfficientSwish()
-
-    def set_swish(self, memory_efficient=True):
-        """Sets swish function as memory efficient (for training) or standard
-           (for export).
-
-        Args:
-            memory_efficient (bool): Whether to use memory-efficient version of
-            swish.
-        """
-        self._swish = MemoryEfficientSwish() if memory_efficient else Swish()
-
-    def forward(self, x, masks, counts):
-        y = self._swish(self._ff_block(x))
-
-        return self._attn(y, x, masks, counts)
-
-
-# A non-local block as used in SA-GAN
-# Note that the implementation as described in the paper is largely incorrect;
-# refer to the released code for the actual implementation.
-class Attention(nn.Module):
-    def __init__(self, ch, name='attention'):
-        super(Attention, self).__init__()
-
-        # Channel multiplier
-        self.ch = ch
-        self.theta = nn.Conv2d(self.ch,
-                               self.ch // 8,
-                               kernel_size=1,
-                               padding=0,
-                               bias=False)
-        self.phi = nn.Conv2d(self.ch,
-                             self.ch // 8,
-                             kernel_size=1,
-                             padding=0,
-                             bias=False)
-        self.g = nn.Conv2d(self.ch,
-                           self.ch // 2,
-                           kernel_size=1,
-                           padding=0,
-                           bias=False)
-        self.o = nn.Conv2d(self.ch // 2,
-                           self.ch,
-                           kernel_size=1,
-                           padding=0,
-                           bias=False)
-        # Learnable gain parameter
-        self.gamma = P(torch.tensor(0.), requires_grad=True)
-
-    def forward(self, x):
-        # Apply convs
-        theta = self.theta(x)
-        phi = F.max_pool2d(self.phi(x), [2, 2])
-        g = F.max_pool2d(self.g(x), [2, 2])
-        # Perform reshapes
-        theta = theta.view(-1, self.ch // 8, x.shape[2] * x.shape[3])
-        phi = phi.view(-1, self.ch // 8, x.shape[2] * x.shape[3] // 4)
-        g = g.view(-1, self.ch // 2, x.shape[2] * x.shape[3] // 4)
-        # Matmul and softmax to get attention maps
-        beta = F.softmax(torch.bmm(theta.transpose(1, 2), phi), -1)
-        # Attention map times g path
-        o = self.o(
-            torch.bmm(g, beta.transpose(1, 2)).view(-1, self.ch // 2,
-                                                    x.shape[2], x.shape[3]))
-        return self.gamma * o + x

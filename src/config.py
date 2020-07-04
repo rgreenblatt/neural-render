@@ -115,7 +115,6 @@ class Config(argparse.Namespace):
         parser.add_argument('--use-seq-blocks', action='store_true')
         parser.add_argument('--checkpoint-conv', action='store_true')
         parser.add_argument('--no-base-transformer', action='store_true')
-        parser.add_argument('--no-add-seq-to-image', action='store_true')
         parser.add_argument('--add-seq-to-image-mix-bias',
                                  type=float,
                                  default=0.0)
@@ -130,6 +129,8 @@ class Config(argparse.Namespace):
                                  type=int,
                                  default=1)
         parser.add_argument('--attn-ch-frac', type=float, default=0.5)
+        parser.add_argument('--key-ch-multip', type=float, default=0.25)
+        parser.add_argument('--image-ch-per-head', type=float, default=64)
         parser.add_argument('--no-seq-to-image-start-use-feat-to-output',
                                  action='store_true')
         parser.add_argument('--full-seq-frequency', action='store_true')
@@ -138,11 +139,12 @@ class Config(argparse.Namespace):
         parser.add_argument('--linear-ch-blocks', type=int, default=2)
 
         parser.add_argument('--ch-coefficient', type=float, default=1.0)
-        parser.add_argument('--depth-coefficient',
-                                 type=float,
-                                 default=1.0)
-        parser.add_argument('--alternate-seq-block', action='store_true')
+        parser.add_argument('--depth-coefficient', type=float, default=1.0)
         parser.add_argument('--attn-excitation', action='store_true')
+        parser.add_argument('--transformer-param-sharing', action='store_true')
+        parser.add_argument('--transformer-cross-attn', action='store_true')
+        parser.add_argument('--apply-at-expand', action='store_true')
+        parser.add_argument('--key-ratio', type=float, default=1.0)
 
         return parser
 
