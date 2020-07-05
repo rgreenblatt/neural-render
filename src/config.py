@@ -58,7 +58,7 @@ class Config(argparse.Namespace):
         parser.add_argument('--batch-size', type=int, default=16)
         parser.add_argument('--no-cudnn-benchmark', action='store_true')
         parser.add_argument('--no-fused-adam', action='store_true')
-        parser.add_argument('--opt-level', default='O1')
+        parser.add_argument('--opt-level', default='O0')
         parser.add_argument('--epochs', type=int, default=200)
         parser.add_argument('--resolution', type=int, default=128)
         parser.add_argument('--valid-split-seed', type=int, default=0)
@@ -81,12 +81,10 @@ class Config(argparse.Namespace):
             default=5000,
             help='number of samples per display print out and tensorboard save'
         )
-        parser.add_argument(
-            '--reset-freq',
-            type=int,
-            default=5000,
-            help='number of samples per resetting bn stats'
-        )
+        parser.add_argument('--set-lr-freq',
+                            type=int,
+                            default=5000,
+                            help='number of samples per setting optimizer lr')
         parser.add_argument('--show-model-info', action='store_true')
         parser.add_argument('--name', required=True)
 
@@ -112,7 +110,7 @@ class Config(argparse.Namespace):
         parser.add_argument('--nonlocal-width', type=int, default=64)
         parser.add_argument('--no-seq-to-image', action='store_true')
         parser.add_argument('--no-image-to-seq', action='store_true')
-        parser.add_argument('--use-seq-blocks', action='store_true')
+        parser.add_argument('--no-seq-blocks', action='store_true')
         parser.add_argument('--checkpoint-conv', action='store_true')
         parser.add_argument('--no-base-transformer', action='store_true')
         parser.add_argument('--add-seq-to-image-mix-bias',
@@ -124,10 +122,10 @@ class Config(argparse.Namespace):
         # ALSO TODO: no parameter sharing
         parser.add_argument('--base-transformer-n-layers',
                                  type=int,
-                                 default=1)
+                                 default=4)
         parser.add_argument('--seq-transformer-n-layers',
                                  type=int,
-                                 default=1)
+                                 default=2)
         parser.add_argument('--attn-ch-frac', type=float, default=0.5)
         parser.add_argument('--key-ch-multip', type=float, default=0.25)
         parser.add_argument('--image-ch-per-head', type=float, default=64)

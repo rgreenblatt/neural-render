@@ -242,7 +242,7 @@ def net_params(input_size, output_width, cfg):
                 show_info=cfg.show_model_info,
                 use_seq_to_image=not cfg.no_seq_to_image,
                 use_image_to_seq=not cfg.no_image_to_seq,
-                use_seq_block=cfg.use_seq_blocks,
+                use_seq_block=not cfg.no_seq_blocks,
                 add_seq_to_image_mix_bias=cfg.add_seq_to_image_mix_bias,
                 add_image_to_seq_mix_bias=cfg.add_image_to_seq_mix_bias,
                 full_seq_frequency=cfg.full_seq_frequency,

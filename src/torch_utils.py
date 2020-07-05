@@ -87,24 +87,30 @@ class LossTracker():
 
         self.total_loss = None
         self.loss_steps = 0
+        self.nan_steps = 0
 
     def update(self, loss):
         # clone probably not needed
-        if self.total_loss is None:
-            self.total_loss = loss.detach().clone()
+        loss = self.reduce_tensor(loss.detach().clone())
+        if torch.isnan(loss).any():
+            self.nan_steps += 1
         else:
-            self.total_loss += loss.detach().clone()
-        self.loss_steps += 1
+            if self.total_loss is None:
+                self.total_loss = loss
+            else:
+                self.total_loss += loss
+            self.loss_steps += 1
 
     def query_reset(self):
         if self.total_loss is None:
-            return None
-
-        avg_loss = self.reduce_tensor(self.total_loss).item() / self.loss_steps
+            avg_loss = None
+        else:
+            avg_loss = self.total_loss.item() / self.loss_steps
         self.total_loss = None
         self.loss_steps = 0
+        self.nan_steps = 0
 
-        return avg_loss
+        return avg_loss, self.nan_steps
 
 
 class ImageTracker():

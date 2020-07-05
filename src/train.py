@@ -309,12 +309,13 @@ def main():
         format_len = math.floor(math.log10(max_train_step)) + 1
 
         def train_display():
-            train_loss = train_loss_tracker.query_reset()
+            train_loss, nan_count = train_loss_tracker.query_reset()
             if not disable_all_output:
-                print("{}, epoch {}/{}, step {}/{}, train loss {:.4e}".format(
-                    datetime.datetime.now(), epoch, cfg.epochs - 1,
-                    str(i * world_batch_size).zfill(format_len),
-                    max_train_step, train_loss),
+                print("{}, epoch {}/{}, step {}/{}, train loss {:.4e}, NaN {}".
+                      format(datetime.datetime.now(), epoch, cfg.epochs - 1,
+                             str(i * world_batch_size).zfill(format_len),
+                             max_train_step, train_loss,
+                             nan_count * world_batch_size),
                       flush=True)
                 writer.add_scalar("loss/train", train_loss, step)
                 writer.add_scalar("lr", lr, step)
@@ -324,21 +325,22 @@ def main():
             actual_images_train = ImageTracker()
             output_images_train = ImageTracker()
 
-        steps_since_reset = 0
+        steps_since_set_lr = 0
 
-        def reset_bn_set_lr():
+        def reset_bn():
             if use_distributed:
                 net.module.reset_running_stats()
             else:
                 net.reset_running_stats()
 
+        def set_lr():
             nonlocal lr
             lr = lr_schedule(step)
 
             for param_group in optimizer.param_groups:
                 param_group['lr'] = lr
 
-        reset_bn_set_lr()
+        set_lr()
 
         def evaluate_on_data(data):
             image = data['image'].to(device)
@@ -356,7 +358,7 @@ def main():
             # this wouldn't be strictly accurate if we had partial batches
             step += world_batch_size
             steps_since_display += world_batch_size
-            steps_since_reset += world_batch_size
+            steps_since_set_lr += world_batch_size
 
             optimizer.zero_grad()
 
@@ -367,26 +369,30 @@ def main():
                 actual_images_train.update(image)
                 output_images_train.update(outputs)
 
-            train_loss_tracker.update(loss)
+            is_nan = train_loss_tracker.update(loss)
 
             with amp.scale_loss(loss, optimizer) as scaled_loss:
                 scaled_loss.backward()
 
-            max_norm = norm_avg.x * 1.5
-            this_norm = nn.utils.clip_grad_norm_(net.parameters(), max_norm)
-            norm_avg.update(this_norm)
-            if not disable_all_output:
-                writer.add_scalar("max_norm", max_norm, step)
-                writer.add_scalar("norm", this_norm, step)
+            if is_nan:
+                reset_bn()
+            else:
+                max_norm = norm_avg.x * 1.5
+                this_norm = nn.utils.clip_grad_norm_(net.parameters(),
+                                                     max_norm)
+                norm_avg.update(this_norm)
+                if not disable_all_output:
+                    writer.add_scalar("max_norm", max_norm, step)
+                    writer.add_scalar("norm", this_norm, step)
 
-            optimizer.step()
+                optimizer.step()
 
             if cfg.profile and step >= cfg.profile_len:
                 return
 
-            if steps_since_reset >= cfg.reset_freq:
-                reset_bn_set_lr()
-                steps_since_reset = 0
+            if steps_since_set_lr >= cfg.set_lr_freq:
+                set_lr()
+                steps_since_set_lr = 0
 
             if steps_since_display >= cfg.display_freq:
                 train_display()
@@ -412,11 +418,13 @@ def main():
 
                 test_loss_tracker.update(loss)
 
-        test_loss = test_loss_tracker.query_reset()
+        test_loss, count_nan = test_loss_tracker.query_reset()
         if not disable_all_output:
-            print("{}, epoch {}/{}, lr {:.4e}, test loss {:.4e}".format(
-                datetime.datetime.now(), epoch, cfg.epochs - 1, lr, test_loss),
-                  flush=True)
+            print(
+                "{}, epoch {}/{}, lr {:.4e}, test loss {:.4e}, NaN {}".format(
+                    datetime.datetime.now(), epoch, cfg.epochs - 1, lr,
+                    test_loss, count_nan * world_batch_size),
+                flush=True)
 
             actual_images_train = actual_images_train.query_reset()
             output_images_train = output_images_train.query_reset()
