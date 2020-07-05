@@ -90,22 +90,21 @@ class Config(argparse.Namespace):
 
         parser.add_argument('--profile', action='store_true')
         parser.add_argument('--profile-len',
-                                 type=int,
-                                 default=5000,
-                                 help='number of samples to run for profiling')
+                            type=int,
+                            default=5000,
+                            help='number of samples to run for profiling')
         parser.add_argument('--fake-data',
-                                 action='store_true',
-                                 help='disable loading data for profiling')
+                            action='store_true',
+                            help='disable loading data for profiling')
 
         parser.add_argument('--norm-style', default='bn')
         parser.add_argument('--start-ch', type=int, default=256)
         parser.add_argument('--end-linear-ch', type=int, default=256)
         parser.add_argument('--start-width', type=int, default=4)
         parser.add_argument('--seq-size', type=int, default=512)
-        parser.add_argument(
-            '--no-sync-bn',
-            action='store_true',
-            help='do not use sync bn when running in parallel')
+        parser.add_argument('--no-sync-bn',
+                            action='store_true',
+                            help='do not use sync bn when running in parallel')
         parser.add_argument('--use-nonlocal', action='store_true')
         parser.add_argument('--nonlocal-width', type=int, default=64)
         parser.add_argument('--no-seq-to-image', action='store_true')
@@ -114,23 +113,19 @@ class Config(argparse.Namespace):
         parser.add_argument('--checkpoint-conv', action='store_true')
         parser.add_argument('--no-base-transformer', action='store_true')
         parser.add_argument('--add-seq-to-image-mix-bias',
-                                 type=float,
-                                 default=0.0)
+                            type=float,
+                            default=0.0)
         parser.add_argument('--add-image-to-seq-mix-bias',
-                                 type=float,
-                                 default=-7.0)
+                            type=float,
+                            default=-7.0)
         # ALSO TODO: no parameter sharing
-        parser.add_argument('--base-transformer-n-layers',
-                                 type=int,
-                                 default=4)
-        parser.add_argument('--seq-transformer-n-layers',
-                                 type=int,
-                                 default=2)
+        parser.add_argument('--base-transformer-n-layers', type=int, default=4)
+        parser.add_argument('--seq-transformer-n-layers', type=int, default=2)
         parser.add_argument('--attn-ch-frac', type=float, default=0.5)
         parser.add_argument('--key-ch-multip', type=float, default=0.25)
         parser.add_argument('--image-ch-per-head', type=float, default=64)
         parser.add_argument('--no-seq-to-image-start-use-feat-to-output',
-                                 action='store_true')
+                            action='store_true')
         parser.add_argument('--full-seq-frequency', action='store_true')
         parser.add_argument('--no-position-ch', action='store_true')
         parser.add_argument('--use-se', action='store_true')
