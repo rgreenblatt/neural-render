@@ -162,11 +162,6 @@ def main():
     else:
         criterion = PerceptualLoss().to(device)
 
-    factor = 2e-6
-    world_batch_size = batch_size * world_size
-    scaled_lr = cfg.lr_multiplier * world_batch_size * factor
-    lr_schedule = LRSched(scaled_lr, cfg.epochs)
-
     if show_model_info:
         print(net)
 
@@ -249,6 +244,16 @@ def main():
         print("===== Training =====")
         print()
 
+    factor = 2e-6
+    world_batch_size = batch_size * world_size
+
+    steps_per_epoch = len(train) * world_batch_size
+
+    scaled_lr = cfg.lr_multiplier * world_batch_size * factor
+    lr_schedule = LRSched(scaled_lr, cfg.epochs * steps_per_epoch)
+
+    lr = 0
+
     for epoch in range(cfg.epochs):
         if change_factors and (epoch % cfg.change_factors_freq) == 0:
             if epoch != 0:
@@ -261,23 +266,27 @@ def main():
                     if min_prop_emissive <= 0.0:
                         min_prop_emissive = None
 
+            train, test, epoch_callback = dataset_m.get_train_test(
+                max_seq_len, min_prop_emissive)
+
+            steps_per_epoch = len(train) * world_batch_size
+
             if max_seq_len is None and min_prop_emissive is None:
                 # main lr schedule
                 lr_schedule = LRSched(scaled_lr,
-                                      cfg.epochs - epoch,
+                                      (cfg.epochs - epoch) * steps_per_epoch,
                                       start_div_factor=16.0,
                                       offset=epoch)
                 change_factors = False
             else:
                 # change_factors lr schedule
                 lr_schedule = LRSched(scaled_lr,
-                                      cfg.change_factors_freq,
+                                      cfg.change_factors_freq *
+                                      steps_per_epoch,
                                       start_div_factor=16.0,
                                       pct_start=1.0,
                                       offset=epoch)
 
-            train, test, epoch_callback = dataset_m.get_train_test(
-                max_seq_len, min_prop_emissive)
             if not disable_all_output:
                 print("max seq len {}, min prop emissive {}, train size {}".
                       format(max_seq_len, min_prop_emissive,
@@ -291,11 +300,6 @@ def main():
         i = 0
 
         train_loss_tracker = LossTracker(reduce_tensor)
-
-        lr = lr_schedule(epoch)
-
-        for param_group in optimizer.param_groups:
-            param_group['lr'] = lr
 
         steps_since_display = 0
         max_train_step = (len(train) - 1) * world_batch_size
@@ -318,13 +322,19 @@ def main():
 
         steps_since_reset = 0
 
-        def reset_bn():
+        def reset_bn_set_lr():
             if use_distributed:
                 net.module.reset_running_stats()
             else:
                 net.reset_running_stats()
 
-        reset_bn()
+            nonlocal lr
+            lr = lr_schedule(step)
+
+            for param_group in optimizer.param_groups:
+                param_group['lr'] = lr
+
+        reset_bn_set_lr()
 
         def evaluate_on_data(data):
             image = data['image'].to(device)
@@ -344,6 +354,8 @@ def main():
             steps_since_display += world_batch_size
             steps_since_reset += world_batch_size
 
+            writer.add_scalar("lr", lr, step)
+
             optimizer.zero_grad()
 
             outputs, loss, image = evaluate_on_data(data)
@@ -358,13 +370,18 @@ def main():
             with amp.scale_loss(loss, optimizer) as scaled_loss:
                 scaled_loss.backward()
 
+            # use clip grad norm to compute overall norm...
+            writer.add_scalar(
+                "grad_norm",
+                nn.utils.clip_grad_norm_(net.parameters(), 10000000.0), step)
+
             optimizer.step()
 
             if cfg.profile and step >= cfg.profile_len:
                 return
 
             if steps_since_reset >= cfg.reset_freq:
-                reset_bn()
+                reset_bn_set_lr()
                 steps_since_reset = 0
 
             if steps_since_display >= cfg.display_freq:
@@ -415,7 +432,6 @@ def main():
                                  make_grid(output_images_test), step)
 
             writer.add_scalar("loss/test", test_loss, step)
-            writer.add_scalar("lr", lr, step)
 
         # if not disable_all_output and (epoch + 1) % cfg.save_model_every == 0:
         #     torch.save(
