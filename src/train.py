@@ -314,6 +314,7 @@ def main():
                     max_train_step, train_loss),
                       flush=True)
                 writer.add_scalar("loss/train", train_loss, step)
+                writer.add_scalar("lr", lr, step)
                 writer.flush()
 
         if not disable_all_output:
@@ -354,8 +355,6 @@ def main():
             steps_since_display += world_batch_size
             steps_since_reset += world_batch_size
 
-            writer.add_scalar("lr", lr, step)
-
             optimizer.zero_grad()
 
             outputs, loss, image = evaluate_on_data(data)
@@ -370,10 +369,12 @@ def main():
             with amp.scale_loss(loss, optimizer) as scaled_loss:
                 scaled_loss.backward()
 
-            # use clip grad norm to compute overall norm...
-            writer.add_scalar(
-                "grad_norm",
-                nn.utils.clip_grad_norm_(net.parameters(), 10000000.0), step)
+            if not disable_all_output:
+                # use clip grad norm to compute overall norm...
+                writer.add_scalar(
+                    "grad_norm",
+                    nn.utils.clip_grad_norm_(net.parameters(), 10000000.0),
+                    step)
 
             optimizer.step()
 
