@@ -182,7 +182,7 @@ class EMATracker():
         self.x = start_value
 
     def update(self, value):
-        self.x = self.x * alpha + (1 - alpha) * value
+        self.x = self.x * self.alpha + (1 - self.alpha) * value
 
 
 if __name__ == "__main__":
