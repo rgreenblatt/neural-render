@@ -374,6 +374,7 @@ def main():
 
             max_norm = norm_avg.x * 1.5
             this_norm = nn.utils.clip_grad_norm_(net.parameters(), max_norm)
+            norm_avg.update(this_norm)
             if not disable_all_output:
                 writer.add_scalar("max_norm", max_norm, step)
                 writer.add_scalar("norm", this_norm, step)
