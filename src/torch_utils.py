@@ -176,6 +176,15 @@ class LRSched():
             return self.cos_part(epoch)
 
 
+class EMATracker():
+    def __init__(self, alpha, start_value):
+        self.alpha = alpha
+        self.x = start_value
+
+    def update(self, value):
+        self.x = self.x * alpha + (1 - alpha) * value
+
+
 if __name__ == "__main__":
     epochs = 100
     sched = LRSched(100, epochs)

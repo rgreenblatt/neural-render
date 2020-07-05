@@ -21,7 +21,8 @@ from constants import pickle_path, get_img_path
 from criterion import PerceptualLoss
 from load_data import DatasetManager
 from model import Net
-from torch_utils import LRSched, linear_to_srgb, LossTracker, ImageTracker
+from torch_utils import (LRSched, linear_to_srgb, LossTracker, ImageTracker,
+                         EMATracker)
 from utils import mkdirs, PrintAndLog
 
 
@@ -254,6 +255,8 @@ def main():
 
     lr = 0
 
+    norm_avg = EMATracker(0.9, 50.0)
+
     for epoch in range(cfg.epochs):
         if change_factors and (epoch % cfg.change_factors_freq) == 0:
             if epoch != 0:
@@ -369,12 +372,11 @@ def main():
             with amp.scale_loss(loss, optimizer) as scaled_loss:
                 scaled_loss.backward()
 
+            max_norm = norm_avg.x * 1.5
+            this_norm = nn.utils.clip_grad_norm_(net.parameters(), max_norm)
             if not disable_all_output:
-                # use clip grad norm to compute overall norm...
-                writer.add_scalar(
-                    "grad_norm",
-                    nn.utils.clip_grad_norm_(net.parameters(), 10000000.0),
-                    step)
+                writer.add_scalar("max_norm", max_norm, step)
+                writer.add_scalar("norm", this_norm, step)
 
             optimizer.step()
 
