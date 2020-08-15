@@ -368,10 +368,23 @@ TODO:
  - see if divergence etc issues go away when removing seq-to-image
    (image-to-seq can also be removed in this case)
  - see if divergence etc issues go away when changing gain bias based on
-   sequence len.
+   sequence len. (Later edit: this doesn't make sense)
  
 Fixed bug with attn code - could have caused issues with sequence length
 variability: testing now
 
 TODO:
  - test batches work as expected...
+
+Tested that batches work as expected (they now do).
+
+TODO:
+ - try training with SGD instead of Adam
+
+Remove seq-to-image and image-to-seq maybe improves divergence, but issues
+remain (specifically, no image-to-seq may result in just tests diverging (???)
+and no seq-to-image has terrible performance).
+
+Architecture is essential!
+
+I think one problem is that the arch is too small.

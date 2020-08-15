@@ -1,0 +1,1 @@
+python3 -m torch.distributed.launch --nproc_per_node 5 --master_port 8000 src/train.py --batch-size 12 --epochs 100 --name deeper_only_base_transformer --base-transformer-n-layers 1 --no-seq-blocks --opt-level O0 --depth-coefficient 2 &> train.log &
