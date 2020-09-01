@@ -10,6 +10,7 @@ import itertools
 
 from utils import resize
 from data_utils import load_exr
+from gen_utils import fill_to_size
 
 
 def chunks_drop_last(lst, n):
@@ -66,6 +67,7 @@ class RenderedDataset(torch.utils.data.Dataset):
         else:
             image = load_exr(self.get_img_path(index))
             inp = self.data[index]
+            inp = fill_to_size(inp, 100)
 
             assert image.shape[0] == image.shape[1], "must be square"
 
