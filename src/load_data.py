@@ -29,28 +29,15 @@ def get_prop_emissive(x):
 
 class RenderedDataset(torch.utils.data.Dataset):
     def __init__(self, pickle_path, get_img_path, resolution, transform,
-                 fake_data, process_input, data_count_limit):
+                 fake_data, process_input, data_count_limit,
+                 compute_overall_stats):
         if not fake_data:
             with open(pickle_path, "rb") as f:
                 self.data = pickle.load(f)
 
                 if data_count_limit is not None:
                     self.data = self.data[:data_count_limit]
-
-                seq_lens = list(map(lambda x: x.shape[0], self.data))
-                self.overall_max_seq_len = max(seq_lens)
-                self.overall_avg_seq_len = np.mean(seq_lens)
-
-                emissive_props = list(map(get_prop_emissive, self.data))
-                self.max_prop_emissive = max(emissive_props)
-                self.min_prop_emissive = min(emissive_props)
-                self.avg_prop_emissive = np.mean(emissive_props)
         else:
-            self.overall_max_seq_len = 1
-            self.overall_avg_seq_len = 1
-            self.max_prop_emissive = 0.5
-            self.min_prop_emissive = 0.5
-            self.avg_prop_emissive = 0.5
             self.data_count = (data_count_limit
                                if data_count_limit is not None else 65536)
 
@@ -59,6 +46,26 @@ class RenderedDataset(torch.utils.data.Dataset):
         self.resolution = resolution
         self.fake_data = fake_data
         self.process_input = process_input
+
+    def get_overall_stats(self):
+        if self.fake_data:
+            overall_max_seq_len = 1
+            overall_avg_seq_len = 1
+            max_prop_emissive = 0.5
+            min_prop_emissive = 0.5
+            avg_prop_emissive = 0.5
+        else:
+            seq_lens = list(map(lambda x: x.shape[0], self.data))
+            overall_max_seq_len = max(seq_lens)
+            overall_avg_seq_len = np.mean(seq_lens)
+
+            emissive_props = list(map(get_prop_emissive, self.data))
+            max_prop_emissive = max(emissive_props)
+            min_prop_emissive = min(emissive_props)
+            avg_prop_emissive = np.mean(emissive_props)
+
+        return (overall_max_seq_len, overall_avg_seq_len, max_prop_emissive,
+                min_prop_emissive, avg_prop_emissive)
 
     def __getitem__(self, index):
         if self.fake_data:
@@ -212,24 +219,29 @@ class DatasetManager():
                  validation_prop,
                  max_validation_size,
                  seed,
+                 compute_overall_stats=False,
                  num_workers=0,
                  fake_data=False,
                  process_input=lambda x: x,
                  data_count_limit=None,
                  num_replicas=1,
                  rank=0):
-        self.dataset = RenderedDataset(pickle_path,
-                                       get_img_path,
-                                       resolution,
-                                       transform=ToTensor(),
-                                       fake_data=fake_data,
-                                       process_input=process_input,
-                                       data_count_limit=data_count_limit)
-        self.overall_max_seq_len = self.dataset.overall_max_seq_len
-        self.overall_avg_seq_len = self.dataset.overall_avg_seq_len
-        self.max_prop_emissive = self.dataset.max_prop_emissive
-        self.min_prop_emissive = self.dataset.min_prop_emissive
-        self.avg_prop_emissive = self.dataset.avg_prop_emissive
+        self.dataset = RenderedDataset(
+            pickle_path,
+            get_img_path,
+            resolution,
+            transform=ToTensor(),
+            fake_data=fake_data,
+            process_input=process_input,
+            data_count_limit=data_count_limit,
+            compute_overall_stats=compute_overall_stats)
+        if compute_overall_stats:
+            stats = self.dataset.get_overall_stats()
+            self.overall_max_seq_len = stats[0]
+            self.overall_avg_seq_len = stats[1]
+            self.max_prop_emissive = stats[2]
+            self.min_prop_emissive = stats[3]
+            self.avg_prop_emissive = stats[4]
 
         num_samples = len(self.dataset)
 
@@ -258,10 +270,14 @@ class DatasetManager():
 
             return seq_size and emissive
 
-        train_subset = self.dataset.filter_indexes_valid(
-            self.train_subset, is_valid)
-        val_subset = self.dataset.filter_indexes_valid(self.val_subset,
-                                                       is_valid)
+        train_subset = self.train_subset
+        val_subset = self.val_subset
+
+        if max_seq_len is not None or min_prop_emissive is not None:
+            train_subset = self.dataset.filter_indexes_valid(
+                self.train_subset, is_valid)
+            val_subset = self.dataset.filter_indexes_valid(self.val_subset,
+                                                           is_valid)
 
         train_sampler = SubsetRandomDistributedSampler(
             train_subset, num_replicas=self.num_replicas, rank=self.rank)

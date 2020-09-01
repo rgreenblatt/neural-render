@@ -204,6 +204,12 @@ def main():
     train_batches_save = math.ceil(cfg.train_images_to_save / batch_size)
     test_batches_save = math.ceil(cfg.test_images_to_save / batch_size)
 
+    if not disable_all_output:
+        print("getting dataset...")
+
+    # this is somewhat expensive, so we don't do so by default
+    compute_overall_stats = True
+
     dataset_m = DatasetManager(pickle_path,
                                get_img_path,
                                img_width,
@@ -216,7 +222,11 @@ def main():
                                process_input=process_input,
                                data_count_limit=cfg.data_count_limit,
                                num_replicas=world_size,
-                               rank=cfg.local_rank)
+                               rank=cfg.local_rank,
+                               compute_overall_stats=compute_overall_stats)
+
+    if not disable_all_output:
+        print("finished loading dataset")
 
     max_seq_len = None
     min_prop_emissive = None
@@ -228,10 +238,16 @@ def main():
     if increase_max_seq_len:
         min_prop_emissive = cfg.start_min_prop_emissive
 
+    if not disable_all_output:
+        print("getting current train test split...")
+
     train, test, epoch_callback = dataset_m.get_train_test(
         max_seq_len, min_prop_emissive)
 
     if not disable_all_output:
+        print("finished getting current train test split")
+
+    if not disable_all_output and compute_overall_stats:
         print("overall max seq len:", dataset_m.overall_max_seq_len)
         print("overall avg seq len:", dataset_m.overall_avg_seq_len)
         print("overall max prop emissive:", dataset_m.max_prop_emissive)
