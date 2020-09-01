@@ -208,7 +208,7 @@ def main():
         print("getting dataset...")
 
     # this is somewhat expensive, so we don't do so by default
-    compute_overall_stats = True
+    compute_overall_stats = False
 
     dataset_m = DatasetManager(pickle_path,
                                get_img_path,
