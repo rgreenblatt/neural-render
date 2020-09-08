@@ -22,7 +22,13 @@ def main():
 
     value = fill_to_size(value, 100)
 
-    DisplayBlenderScene(value)
+    scene = DisplayBlenderScene(value)
+
+    # print(scene.spheres[0].data.triangles[0].co)
+    # print(scene.spheres[0].data.vertices[0].co)
+    # print(scene.spheres[0].data.vertices[0].co.x)
+    # print(scene.spheres[0].data.vertices[0].co.y)
+    # print(scene.spheres[0].data.vertices[0].co.z)
 
 
 if __name__ == "__main__":
